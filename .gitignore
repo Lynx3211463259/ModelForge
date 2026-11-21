@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# ModelForge runtime data — never committed (models, databases, logs, secrets)
+# ---------------------------------------------------------------------------
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+output/*
+!output/.gitkeep
+temp/*
+!temp/.gitkeep
+logs/*
+!logs/.gitkeep
+plugins/*
+!plugins/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Build outputs
+# ---------------------------------------------------------------------------
+release/
+build/
+build-win/
+build-modelforge/
+build-tools/
+dist/
+backend/bin/
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.dll
+*.so
+*.dylib
+a.out
+
+# ---------------------------------------------------------------------------
+# Frontend
+# ---------------------------------------------------------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------------------
+# Python / tooling
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---------------------------------------------------------------------------
+# Models and large binaries (distributed through GitHub Releases, not Git)
+# ---------------------------------------------------------------------------
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.zip
+*.tar.gz
+*.tar.xz
+*.7z
+
+# ---------------------------------------------------------------------------
+# Secrets and local configuration
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.token
+secrets/
+hf.token
+*.pem
+*.key
+*.p12
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

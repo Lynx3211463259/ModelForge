@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or improvement for ModelForge
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the workflow that is currently painful or impossible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Usage scenario
+      description: Who needs this, and when? A concrete example helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed implementation
+      description: How you imagine it working. Mockups or sketches are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other tools or workarounds you tried.
+    validations:
+      required: false

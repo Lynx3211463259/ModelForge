@@ -1,0 +1,27 @@
+# Normalize line endings. Source stays LF everywhere; Windows launchers keep CRLF.
+* text=auto eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.webp binary
+
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.lib binary
+*.a binary
+
+*.gguf binary
+*.safetensors binary
+*.zip binary
+*.tar.gz binary

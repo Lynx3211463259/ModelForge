@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a reproducible problem with ModelForge
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail
+        as possible; incomplete reports are hard to reproduce.
+        Remove tokens, API keys and personal paths from logs before posting.
+
+  - type: input
+    id: version
+    attributes:
+      label: ModelForge version
+      description: Shown in the UI header or `modelforge --version`.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - Windows 10
+        - Windows 11
+        - Linux
+        - macOS
+        - Android (Termux)
+        - openEuler
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps, in order.
+      placeholder: |
+        1. Open the Models page
+        2. Import ...
+        3. Click ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Backend log excerpt or browser console output. Remove secrets first.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Model type, file sizes, llama.cpp version, screenshots, anything relevant.
+    validations:
+      required: false
