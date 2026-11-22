@@ -424,7 +424,7 @@ bash scripts/build-android.sh        # Android Termux x64/arm64（静态 musl）
 bash scripts/build-openeuler.sh      # openEuler x64/arm64
 ```
 
-- Termux 包：`release/ModelForge-1.0.0-android-{arm64,x64}.tar.gz`（需在 Termux 内手工启动）。
+- Termux 包：`release/ModelForge-1.0.0-android-{arm64,x64}.zip`（需在 Termux 内手工启动）。
 
 ## 14. 许可证
 

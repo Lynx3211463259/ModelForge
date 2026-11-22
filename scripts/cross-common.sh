@@ -43,6 +43,9 @@ build_with() {
 }
 
 # stage <out-dir> <os-id> <arch> <ext>  ->  release/ModelForge-<ver>-<os>-<arch>.<ext>
+# Archives are ZIP so every platform uses one format. Python's zipfile is used
+# instead of the `zip` CLI and stores Unix mode bits, keeping `modelforge`
+# executable after extraction on Linux/macOS/Android/openEuler.
 stage() {
   local out_dir="$1" os="$2" arch="$3" ext="$4"
   local name="ModelForge-${VERSION}-${os}-${arch}"
@@ -53,6 +56,35 @@ stage() {
   cp "$ROOT/docs/"*.md "$out_dir/docs/" 2>/dev/null || true
   # README embeds docs/images/logo.png; ship the image assets with the docs.
   cp -r "$ROOT/docs/images" "$out_dir/docs/" 2>/dev/null || true
-  (cd "$ROOT/dist" && tar -czf "$release/${name}.${ext}" "${os}-${arch}")
+  python - "$ROOT/dist" "$out_dir" "$release/${name}.${ext}" <<'PY'
+import os, sys, zipfile
+
+base = os.path.abspath(sys.argv[1])
+folder = os.path.abspath(sys.argv[2])
+target = sys.argv[3]
+
+with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+    for root, dirs, files in os.walk(folder):
+        dirs.sort()
+        files.sort()
+        for d in dirs:
+            path = os.path.join(root, d)
+            rel = os.path.relpath(path, base).replace(os.sep, "/") + "/"
+            info = zipfile.ZipInfo(rel)
+            info.external_attr = (0o40755 & 0xFFFF) << 16
+            z.writestr(info, b"")
+        for f in files:
+            path = os.path.join(root, f)
+            rel = os.path.relpath(path, base).replace(os.sep, "/")
+            info = zipfile.ZipInfo(rel)
+            mode = os.stat(path).st_mode
+            # Windows has no Unix exec bit, so grant it explicitly for the
+            # daemon and shell scripts; other files stay 0644.
+            perm = 0o755 if (f == "modelforge" or f.endswith(".sh")) else 0o644
+            info.external_attr = ((mode & 0o170000) | perm) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            with open(path, "rb") as fh:
+                z.writestr(info, fh.read())
+PY
   log "打包：$release/${name}.${ext}"
 }

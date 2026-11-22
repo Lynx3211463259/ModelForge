@@ -1,5 +1,39 @@
 # ModelForge 1.0.0
 
+## Downloads
+
+<!-- DOWNLOADS:START -->
+Choose the archive for your operating system and architecture. All builds are ZIP files.
+
+### Windows
+
+- [Windows x64 — portable](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-win64.zip)
+
+### macOS
+
+- [macOS Apple Silicon (arm64)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-macos-arm64.zip)
+- [macOS Intel (x64)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-macos-x64.zip)
+
+### Linux
+
+- [Linux x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-linux-x64.zip)
+- [Linux arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-linux-arm64.zip)
+
+### Android
+
+- [Android arm64 (Termux)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-android-arm64.zip)
+- [Android x64 (Termux)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-android-x64.zip)
+
+### openEuler
+
+- [openEuler x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-openeuler-x64.zip)
+- [openEuler arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-openeuler-arm64.zip)
+
+iOS: no distributable build (signing required; no long-lived background HTTP service). Source stays syntax-checked only.
+
+Verify your download with `SHA256SUMS.txt` in the Assets section below.
+<!-- DOWNLOADS:END -->
+
 First public release of ModelForge — a local AI model management, conversion and
 quantization workstation with a C++17 backend and a Vue 3 Web UI.
 
@@ -63,7 +97,7 @@ Windows:
 Linux / macOS / Android (Termux) / openEuler:
 
 ```bash
-tar xzf ModelForge-1.0.0-linux-x64.tar.gz
+unzip ModelForge-1.0.0-linux-x64.zip
 cd linux-x64
 ./modelforge serve --no-browser
 ```

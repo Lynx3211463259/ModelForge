@@ -20,6 +20,6 @@ pkg install -y curl python 2>/dev/null || true
 EOF
 cp dist/android-arm64/run.sh dist/android-x64/run.sh
 
-stage dist/android-arm64 android arm64 tar.gz
-stage dist/android-x64   android x64   tar.gz
+stage dist/android-arm64 android arm64 zip
+stage dist/android-x64   android x64   zip
 echo "Android 构建完成（Termux 控制台形态）。"

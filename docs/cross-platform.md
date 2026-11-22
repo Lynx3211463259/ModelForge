@@ -13,10 +13,10 @@
 | 平台 | 状态 | 产物 | 实机验证 |
 | --- | --- | --- | --- |
 | Windows | ✅ 已构建 + 实机测试 | `ModelForge-1.0.0-win64.zip` | 是（Windows 11） |
-| Linux | ✅ 已构建验证（交叉编译，静态 musl） | `ModelForge-1.0.0-linux-x64/arm64.tar.gz` | 否（构建+静态检查，未实机运行） |
-| macOS | ✅ 已构建验证（交叉编译 Mach-O） | `ModelForge-1.0.0-macos-arm64/x64.tar.gz` | 否（未签名，未实机运行） |
-| Android | ✅ 已构建验证（Termux 形态，静态 musl） | `ModelForge-1.0.0-android-arm64/x64.tar.gz` | 否 |
-| openEuler | ✅ 已构建验证（静态 musl） | `ModelForge-1.0.0-openeuler-x64/arm64.tar.gz` | 否 |
+| Linux | ✅ 已构建验证（交叉编译，静态 musl） | `ModelForge-1.0.0-linux-x64/arm64.zip` | 否（构建+静态检查，未实机运行） |
+| macOS | ✅ 已构建验证（交叉编译 Mach-O） | `ModelForge-1.0.0-macos-arm64/x64.zip` | 否（未签名，未实机运行） |
+| Android | ✅ 已构建验证（Termux 形态，静态 musl） | `ModelForge-1.0.0-android-arm64/x64.zip` | 否 |
+| openEuler | ✅ 已构建验证（静态 musl） | `ModelForge-1.0.0-openeuler-x64/arm64.zip` | 否 |
 | iOS | ❌ 阻塞（无 Apple SDK / 无证书 / 无后台服务部署路径） | 无（仅语法静态检查） | 否 |
 
 关键说明：除 Windows 外，交叉产物均已完成**编译与链接**并通过魔数校验（ELF / Mach-O）、
@@ -41,7 +41,7 @@
 | 11 | 服务托管 | 前台进程（无 Windows 服务） | systemd（Linux/openEuler）、launchd（macOS）、Termux 脚本（Android） | 新增服务定义 |
 | 12 | 端口探测 | `winsock` bind | `socket`/`bind`（`inet_pton` 绑定实际地址） | `checkTcpPort(port, host)` 统一 |
 | 13 | 构建配置 | CMake + MinGW GCC 16.2.0 | zig 0.14.0 交叉编译（musl/glibc/Mach-O） | 每平台独立脚本 |
-| 14 | 打包 | `package-windows.ps1`（zip） | tar.gz（按平台/架构分离） | 每平台独立产物 |
+| 14 | 打包 | `package-windows.ps1`（zip） | zip（按平台/架构分离） | 每平台独立产物 |
 | 15 | 签名 | 无（zip） | macOS 需 codesign+notarize；iOS 需证书 | 见第 6 节 |
 | 16 | 应用图标 | `modelforge.exe` 通过 RC 内嵌多尺寸 ICO | Web UI 自带 favicon / PNG（全平台一致）；其他平台可执行文件无内嵌图标，启动器可引用 `docs/images/logo.png` | 同一源图生成 |
 
@@ -73,7 +73,7 @@ Hugging Face Token 不再落入 SQLite 明文，改为写入 `data/secrets/hf.to
 
 - Linux / openEuler：`modelforge.service`（systemd，`ExecStart=... serve --no-browser`）。
 - macOS：`com.modelforge.plist`（launchd，`~/Library/LaunchAgents`）。
-- Android：Termux `run.sh`（先 `pkg install curl python` 再 `./modelforge serve`），产物 `*-android-*.tar.gz`。
+- Android：Termux `run.sh`（先 `pkg install curl python` 再 `./modelforge serve`），产物 `*-android-*.zip`。
 - Windows：前台进程（与历史版本一致）。
 
 ---
@@ -121,7 +121,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
   bash scripts/build-openeuler.sh      # x86_64 + aarch64（musl 静态）
   bash scripts/build-android.sh        # arm64 + x64（musl 静态，Termux）
 目标架构：见各命令
-产物：release\ModelForge-1.0.0-{linux,openeuler,android}-{x64,arm64}.tar.gz
+产物：release\ModelForge-1.0.0-{linux,openeuler,android}-{x64,arm64}.zip
 ```
 
 ### macOS（交叉编译，已构建验证，未签名）
@@ -130,7 +130,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
 构建环境：Windows 宿主 + zig 0.14.0
 命令：bash scripts/build-macos.sh      # arm64 + x86_64（Mach-O）
 目标架构：arm64 / x64
-产物：release\ModelForge-1.0.0-macos-{arm64,x64}.tar.gz
+产物：release\ModelForge-1.0.0-macos-{arm64,x64}.zip
 ```
 
 ### iOS（阻塞）
@@ -144,7 +144,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
 ### 产物结构树（POSIX 包示例）
 
 ```
-ModelForge-1.0.0-linux-x64.tar.gz
+ModelForge-1.0.0-linux-x64.zip
 └── linux-x64/
     ├── modelforge                 # 静态二进制
     ├── modelforge.service         # systemd（linux/openEuler）
@@ -198,7 +198,7 @@ ModelForge-1.0.0-linux-x64.tar.gz
 
 ```bash
 # Linux / openEuler
-tar xzf ModelForge-1.0.0-linux-x64.tar.gz && cd linux-x64
+unzip ModelForge-1.0.0-linux-x64.zip && cd linux-x64
 ./modelforge serve --no-browser &  curl http://127.0.0.1:8080/api/v1/health
 
 # macOS（先签名）
@@ -207,5 +207,5 @@ xattr -dr com.apple.quarantine ./modelforge   # 或完整 codesign + notarize
 
 # Android（Termux）
 pkg install curl python
-tar xzf ModelForge-1.0.0-android-arm64.tar.gz && cd android-arm64 && bash run.sh
+unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
 ```

@@ -147,10 +147,10 @@ Portable builds are attached to
 | Platform | Artifact | Status |
 | --- | --- | --- |
 | Windows x64 | `ModelForge-1.0.0-win64.zip` | Built and validated on Windows 11 |
-| Linux x64 / arm64 | `ModelForge-1.0.0-linux-{x64,arm64}.tar.gz` | Cross-built, not run on device |
-| macOS arm64 / x64 | `ModelForge-1.0.0-macos-{arm64,x64}.tar.gz` | Cross-built, unsigned |
-| Android (Termux) | `ModelForge-1.0.0-android-{arm64,x64}.tar.gz` | Cross-built, not run on device |
-| openEuler x64 / arm64 | `ModelForge-1.0.0-openeuler-{x64,arm64}.tar.gz` | Cross-built, not run on device |
+| Linux x64 / arm64 | `ModelForge-1.0.0-linux-{x64,arm64}.zip` | Cross-built, not run on device |
+| macOS arm64 / x64 | `ModelForge-1.0.0-macos-{arm64,x64}.zip` | Cross-built, unsigned |
+| Android (Termux) | `ModelForge-1.0.0-android-{arm64,x64}.zip` | Cross-built, not run on device |
+| openEuler x64 / arm64 | `ModelForge-1.0.0-openeuler-{x64,arm64}.zip` | Cross-built, not run on device |
 | iOS | — | Blocked by platform policy (no long-lived background service, signing required) |
 
 ### Windows
@@ -168,7 +168,7 @@ llama.cpp assets.
 ### Linux / macOS / Android / openEuler
 
 ```bash
-tar xzf ModelForge-1.0.0-linux-x64.tar.gz
+unzip ModelForge-1.0.0-linux-x64.zip
 cd linux-x64
 ./modelforge serve --no-browser
 ```

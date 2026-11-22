@@ -75,20 +75,79 @@ fi
 
 # --- 3. release -------------------------------------------------------------
 log "creating release $TAG"
-release_json="$(curl -fsS "${AUTH[@]}" -X POST "$API/repos/$OWNER/$REPO/releases" \
-  -d "$(python - "$TAG" "$VERSION" "$notes" "$DRAFT_FLAG" <<'PY'
+# The release notes contain a marked downloads block. Regenerate it for the
+# version being published so every release description links to its own assets,
+# grouped by operating system (the layout used by llama.cpp releases).
+body_file="$(mktemp)"
+python - "$OWNER" "$REPO" "$VERSION" "$notes" "$body_file" <<'PY'
+import sys
+
+owner, repo, version, notes_path, out_path = sys.argv[1:6]
+notes = open(notes_path, encoding="utf-8").read()
+base = f"https://github.com/{owner}/{repo}/releases/download/v{version}"
+
+groups = [
+    ("Windows", [("Windows x64 — portable", "win64")]),
+    ("macOS", [
+        ("macOS Apple Silicon (arm64)", "macos-arm64"),
+        ("macOS Intel (x64)", "macos-x64"),
+    ]),
+    ("Linux", [
+        ("Linux x64 (static musl)", "linux-x64"),
+        ("Linux arm64 (static musl)", "linux-arm64"),
+    ]),
+    ("Android", [
+        ("Android arm64 (Termux)", "android-arm64"),
+        ("Android x64 (Termux)", "android-x64"),
+    ]),
+    ("openEuler", [
+        ("openEuler x64 (static musl)", "openeuler-x64"),
+        ("openEuler arm64 (static musl)", "openeuler-arm64"),
+    ]),
+]
+
+lines = [
+    "Choose the archive for your operating system and architecture. All builds are ZIP files.",
+    "",
+]
+for title, items in groups:
+    lines.append(f"### {title}")
+    lines.append("")
+    for label, slug in items:
+        lines.append(f"- [{label}]({base}/ModelForge-{version}-{slug}.zip)")
+    lines.append("")
+lines.extend([
+    "iOS: no distributable build (signing required; no long-lived background HTTP service).",
+    "Source stays syntax-checked only.",
+    "",
+    "Verify your download with `SHA256SUMS.txt` in the Assets section below.",
+])
+block = "\n".join(lines)
+start, end = "<!-- DOWNLOADS:START -->", "<!-- DOWNLOADS:END -->"
+if start in notes and end in notes:
+    head, rest = notes.split(start, 1)
+    _, tail = rest.split(end, 1)
+    notes = head + start + "\n" + block + "\n" + end + tail
+else:
+    notes = notes.rstrip() + "\n\n## Downloads\n\n" + start + "\n" + block + "\n" + end + "\n"
+open(out_path, "w", encoding="utf-8").write(notes)
+PY
+payload_file="$(mktemp)"
+python - "$TAG" "$VERSION" "$body_file" "$DRAFT_FLAG" "$payload_file" <<'PY'
 import json, sys
-tag, version, path, draft = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-body = open(path, encoding="utf-8").read()
-print(json.dumps({
+
+tag, version, body_path, draft, out_path = sys.argv[1:6]
+payload = {
     "tag_name": tag,
     "name": f"ModelForge {version}",
-    "body": body,
+    "body": open(body_path, encoding="utf-8").read(),
     "draft": draft == "true",
     "prerelease": False,
-}))
+}
+with open(out_path, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
 PY
-)")"
+release_json="$(curl -fsS "${AUTH[@]}" -X POST "$API/repos/$OWNER/$REPO/releases" -d @"$payload_file")"
 release_id="$(printf '%s' "$release_json" | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
 log "release id: $release_id"
 
@@ -96,7 +155,6 @@ log "release id: $release_id"
 shopt -s nullglob
 assets=(
   release/ModelForge-"$VERSION"-*.zip
-  release/ModelForge-"$VERSION"-*.tar.gz
   release/SHA256SUMS.txt
 )
 [ "${#assets[@]}" -gt 0 ] || die "no assets matched release/ModelForge-$VERSION-*"

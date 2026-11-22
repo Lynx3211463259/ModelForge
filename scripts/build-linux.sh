@@ -30,6 +30,6 @@ WantedBy=multi-user.target
 EOF
 cp dist/linux-x64/modelforge.service dist/linux-arm64/modelforge.service
 
-stage dist/linux-x64   linux  x64   tar.gz
-stage dist/linux-arm64 linux  arm64 tar.gz
+stage dist/linux-x64   linux  x64   zip
+stage dist/linux-arm64 linux  arm64 zip
 echo "Linux 构建完成。"

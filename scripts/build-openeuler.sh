@@ -26,6 +26,6 @@ WantedBy=multi-user.target
 EOF
 cp dist/openeuler-x64/modelforge.service dist/openeuler-arm64/modelforge.service
 
-stage dist/openeuler-x64   openeuler x64   tar.gz
-stage dist/openeuler-arm64 openeuler arm64 tar.gz
+stage dist/openeuler-x64   openeuler x64   zip
+stage dist/openeuler-arm64 openeuler arm64 zip
 echo "openEuler 构建完成。"

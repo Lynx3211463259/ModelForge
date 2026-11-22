@@ -30,6 +30,6 @@ cat > dist/macos-arm64/com.modelforge.plist <<'EOF'
 EOF
 cp dist/macos-arm64/com.modelforge.plist dist/macos-x64/com.modelforge.plist
 
-stage dist/macos-arm64 macos arm64 tar.gz
-stage dist/macos-x64   macos x64   tar.gz
+stage dist/macos-arm64 macos arm64 zip
+stage dist/macos-x64   macos x64   zip
 echo "macOS 构建完成（未签名；分发需在 macOS 上 codesign + notarize）。"
