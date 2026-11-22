@@ -9,6 +9,7 @@
 #include "modelforge/settings.hpp"
 #include "modelforge/system_service.hpp"
 #include "modelforge/task_manager.hpp"
+#include "modelforge/update_service.hpp"
 #include "modelforge/watch_service.hpp"
 #include "modelforge/ws_server.hpp"
 
@@ -22,7 +23,7 @@ class ApiServer {
 public:
     ApiServer(SettingsService& settings, ConverterService& converter, TaskManager& tasks,
               SystemService& system, DownloadManager& downloads, LlamaRuntimeService& llama,
-              QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws);
+              QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws, UpdateService& update);
     ~ApiServer();
 
     bool prepare(std::string& error);
@@ -42,6 +43,7 @@ private:
     WatchService& watch_;
     EventHub& events_;
     WsServer& ws_;
+    UpdateService& update_;
     std::unique_ptr<httplib::Server> server_;
     std::unique_ptr<OpenApiRegistry> routes_;
     int64_t startedAt_ = 0;
@@ -59,6 +61,7 @@ private:
     void registerLlamaRoutes();
     void registerQualityRoutes();
     void registerWatchRoutes();
+    void registerUpdateRoutes();
     json capabilities() const;
     bool readJson(const httplib::Request& req, json& out, std::string& error) const;
 };

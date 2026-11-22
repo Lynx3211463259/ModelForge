@@ -839,3 +839,39 @@ URL：`ws://127.0.0.1:8081/ws`（HTTP 端口 + 1）
 | `PPL_NOT_AVAILABLE` | llama-perplexity 不可用或没有目标 |
 | `PPL_UNPARSED` | 未能从 llama-perplexity 输出解析困惑度 |
 | `WATCH_SCAN_FAILED` | 监控扫描无法开始（未配置目录） |
+
+
+## 17. 软件更新
+
+所有端点前缀为 `/api/v1/updates`。
+
+### GET /updates/check
+
+查询 GitHub 最新 Release，返回 `currentVersion`、`latestVersion`、
+`updateAvailable`、`releaseName`、`releaseNotes`、`htmlUrl`、`publishedAt`、
+`assetName`、`assetSize`、`code`、`message`、`suggestion`。
+`code`：`UPDATE_AVAILABLE`（发现新版本）、`UP_TO_DATE`（无更新）、
+`NETWORK_ERROR`（网络/限流/404）、`VERSION_PARSE_FAILED`（版本号无法解析）、
+`ASSET_NOT_FOUND`（当前平台无匹配资产）。这些状态以 HTTP 200 返回，由
+`code` 区分，前端据此给出对应提示。
+
+### POST /updates/download
+
+请求体可为 `{}`。须先调用 check 且 `updateAvailable` 为 true；否则返回 409
+`NO_UPDATE_READY`。成功返回 `jobId`。下载任务在后台执行，状态依次为
+`downloading` → `verifying` → `extracting` → `ready`，失败为 `failed`：
+`DOWNLOAD_FAILED`、`CHECKSUM_MISSING`、`CHECKSUM_MISMATCH`、`EXTRACT_FAILED`。
+
+### GET /updates/job/{id}
+
+返回 `id`、`status`、`statusLabel`、`progress`、`message`、`code`、
+`version`、`assetName`、`downloadedBytes`、`totalBytes`、`scriptPath`。
+任务不存在返回 404 `JOB_NOT_FOUND`。
+
+### POST /updates/apply
+
+请求体 `{"jobId": "..."}`。仅 `ready` 状态可应用，否则 409
+`UPDATE_NOT_READY`。成功后返回 `message` 与 `scriptPath`，状态变为
+`applied`。安装脚本在进程退出后替换文件并重启：Windows 使用
+`apply-update.bat`，POSIX 使用 `apply-update.sh`。启动失败返回 500
+`APPLY_FAILED`。

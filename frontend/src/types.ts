@@ -171,3 +171,35 @@ export interface Settings {
   watchAutoConvert: boolean
   watchPresetId: string
 }
+
+
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  releaseName: string
+  releaseNotes: string
+  htmlUrl: string
+  publishedAt: string
+  updateAvailable: boolean
+  prerelease: boolean
+  assetName: string
+  assetSize: number
+  assetSizeLabel: string
+  code: string
+  message: string
+  suggestion: string
+}
+
+export interface UpdateJob {
+  id: string
+  status: string
+  statusLabel: string
+  progress: number
+  message: string
+  code: string
+  version: string
+  assetName: string
+  downloadedBytes: number
+  totalBytes: number
+  scriptPath: string
+}

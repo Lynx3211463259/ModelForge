@@ -209,3 +209,21 @@ xattr -dr com.apple.quarantine ./modelforge   # 或完整 codesign + notarize
 pkg install curl python
 unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
 ```
+
+
+## 9. 软件更新（跨平台）
+
+- 版本比较与资产匹配使用统一纯函数：`v1.2.0` → `1.2.0`，按数字段比较；
+  资产名为 `ModelForge-<版本>-<平台>-<架构>.zip`。Windows 固定 `win64`，
+  POSIX 按目标为 `linux/macos/android/openeuler-<arch>`。
+- `MODELFORGE_GITHUB_API` 可覆盖 GitHub API 地址（企业版或本地测试）；
+  `MODELFORGE_UPDATE_ASSET` / `MODELFORGE_UPDATE_PLATFORM` 可覆盖资产匹配，
+  便于在各平台验证而不必发布新版本。
+- 下载统一走 `HttpClient`，用 Release 的 `SHA256SUMS.txt` 校验后才解压；
+  校验失败不会写出安装脚本。
+- 安装脚本在进程退出后执行：Windows 用 `apply-update.bat`（先备份
+  `modelforge.exe` 再 `xcopy` 覆盖并重启），POSIX 用 `apply-update.sh`
+  （`cp -a` 覆盖后 `chmod +x` 并 `nohup` 重启）。脚本以分离进程启动，
+  不会阻塞 HTTP 请求。
+- iOS 无分发产物，更新入口只用于说明；源码保持同一套可编译逻辑，仅做
+  `-fsyntax-only` 校验。

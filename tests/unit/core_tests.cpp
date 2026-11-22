@@ -1,6 +1,7 @@
 #include "modelforge/crypto.hpp"
 #include "modelforge/hf_client.hpp"
 #include "modelforge/http_client.hpp"
+#include "modelforge/update_service.hpp"
 #include "modelforge/util.hpp"
 
 #include <iostream>
@@ -96,6 +97,43 @@ void testRedaction() {
            "hf token pattern redacted");
 }
 
+void testUpdateHelpers() {
+    std::vector<int> parts;
+    expect(mf::updates::parseVersion("v1.2.0", parts) && parts == std::vector<int>({1, 2, 0}),
+           "parse semver tag");
+    expect(mf::updates::parseVersion("1.10.0-beta.3", parts) && parts == std::vector<int>({1, 10, 0}),
+           "parse prerelease tag ignores suffix");
+    expect(!mf::updates::parseVersion("release-candidate", parts), "reject non-version tag");
+    expect(mf::updates::compareVersions("v1.10.0", "v1.9.9") > 0, "numeric segment comparison");
+    expect(mf::updates::compareVersions("1.0.0", "1.0.0") == 0, "equal versions");
+    expect(mf::updates::compareVersions("v1.0.0", "1.0.1") < 0, "older version");
+    expect(mf::updates::compareVersions("bad", "1.0.0") == 0, "malformed version never upgrades");
+
+    const std::string suffix = mf::updates::platformAssetSuffix();
+    expect(!suffix.empty() && (suffix == "win64" || suffix.find('-') != std::string::npos),
+           "platform asset suffix");
+
+    const std::string sums =
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789  ModelForge-1.0.0-linux-x64.zip\n"
+        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef *other.zip\n";
+    expect(mf::updates::checksumFor(sums, "ModelForge-1.0.0-linux-x64.zip") ==
+           "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", "checksum lookup");
+    expect(mf::updates::checksumFor(sums, "missing.zip").empty(), "missing checksum");
+
+    mf::UpdateInfo info;
+    info.currentVersion = "1.0.0";
+    info.latestVersion = "v1.1.0";
+    info.code = "UPDATE_AVAILABLE";
+    info.updateAvailable = true;
+    const mf::json projected = info.toJson();
+    expect(projected.value("updateAvailable", false) && projected.value("latestVersion", "") == "v1.1.0",
+           "update info projection");
+    mf::UpdateJob job;
+    job.id = "upd_1";
+    job.status = "ready";
+    expect(job.toJson().value("status", "") == "ready", "update job projection");
+}
+
 } // namespace
 
 int main() {
@@ -105,6 +143,7 @@ int main() {
     testCryptoEncoding();
     testHfParsing();
     testRedaction();
+    testUpdateHelpers();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
         return 1;

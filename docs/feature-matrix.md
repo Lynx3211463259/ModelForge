@@ -49,6 +49,7 @@
 | Llama / GPT2 / Qwen 标准文本模型 | 按 `convert_hf_to_gguf.py` 注册的架构精确匹配 |
 | FishAudio S2-pro (`fish_qwen3_omni`) | `ARCH_UNSUPPORTED_CUSTOM`：自定义语音/多模态架构，需专用转换器与推理引擎，升级 llama.cpp 无法解决 |
 | 其他含 `audio_*` / `vision_*` / `text_config` 的自定义架构 | 返回具体组件与相近已注册架构，避免误导为“升级即可解决” |
+| 32 | 软件自动更新 | ✅ | GitHub Release 检查、语义化版本比较、更新说明展示、确认后下载 + SHA256SUMS 校验 + 解压，生成 Windows BAT / POSIX SH 脚本在进程退出后替换并重启；无更新、网络异常、版本解析失败、下载/校验/安装失败均有明确错误码。 |
 
 ## 已验证的真实链路
 

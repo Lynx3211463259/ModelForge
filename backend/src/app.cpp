@@ -135,8 +135,9 @@ bool App::initialize(std::string& error) {
     quality_.reset(new QualityService(*db_, *settings_, *system_, *events_));
     watch_.reset(new WatchService(*db_, *settings_, *system_, *tasks_, *events_));
     ws_.reset(new WsServer());
+    update_.reset(new UpdateService(runtimeBase, runtimeBase / "temp"));
     api_.reset(new ApiServer(*settings_, *converter_, *tasks_, *system_, *downloads_, *llama_, *quality_, *watch_,
-                             *events_, *ws_));
+                             *events_, *ws_, *update_));
     initialized_ = true;
     Logger::instance().info("ModelForge " + std::string(MODELEFORGE_VERSION) + " initialized at " + pathToUtf8(options_.root));
     Logger::instance().info("Runtime data directory: " + pathToUtf8(runtimeBase));

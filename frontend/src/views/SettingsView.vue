@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { applyLocale, t } from '../i18n'
 import { applyTheme } from '../theme'
-import { onMounted, ref } from 'vue'
-import { api } from '../api/client'
-import type { Settings } from '../types'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { api, formatTime, humanBytes, updatesApi } from '../api/client'
+import type { Settings, UpdateInfo, UpdateJob } from '../types'
 import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
+import AppModal from '../components/AppModal.vue'
+import ProgressBar from '../components/ProgressBar.vue'
 
 const app = useAppStore()
 const form = ref<Settings | null>(null)
@@ -15,6 +17,14 @@ const testing = ref(false)
 const checks = ref<any[]>([])
 const restartRequired = ref(false)
 const importInput = ref<HTMLInputElement | null>(null)
+
+const updateInfo = ref<UpdateInfo | null>(null)
+const updateJob = ref<UpdateJob | null>(null)
+const checkingUpdate = ref(false)
+const downloadingUpdate = ref(false)
+const applyingUpdate = ref(false)
+const updateModalOpen = ref(false)
+let updatePoll: number | undefined
 
 async function load() {
   loading.value = true
@@ -86,6 +96,78 @@ async function importSettings(event: Event) {
   }
 }
 
+async function checkUpdate() {
+  checkingUpdate.value = true
+  updateInfo.value = null
+  updateJob.value = null
+  try {
+    const info = await updatesApi.check()
+    updateInfo.value = info
+    if (info.code === 'UPDATE_AVAILABLE') updateModalOpen.value = true
+    else if (info.code === 'UP_TO_DATE') app.toast('success', t('已是最新版本'))
+    else app.toast('warning', info.message || t('检查更新失败'))
+  } catch (error) {
+    app.fromError(error, t('检查更新失败'))
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
+async function startUpdateDownload() {
+  updateModalOpen.value = false
+  downloadingUpdate.value = true
+  try {
+    const result = await updatesApi.download()
+    updateJob.value = {
+      id: result.jobId, status: 'downloading', statusLabel: t('下载中'), progress: 0,
+      message: result.message, code: '', version: updateInfo.value?.latestVersion || '',
+      assetName: updateInfo.value?.assetName || '', downloadedBytes: 0,
+      totalBytes: updateInfo.value?.assetSize || 0, scriptPath: ''
+    }
+    pollUpdateJob(result.jobId)
+  } catch (error) {
+    app.fromError(error, t('下载更新失败'))
+  } finally {
+    downloadingUpdate.value = false
+  }
+}
+
+function pollUpdateJob(id: string) {
+  if (updatePoll) window.clearInterval(updatePoll)
+  updatePoll = window.setInterval(async () => {
+    try {
+      const job = await updatesApi.job(id)
+      updateJob.value = job
+      if (job.status === 'ready' || job.status === 'failed' || job.status === 'applied') {
+        window.clearInterval(updatePoll)
+        updatePoll = undefined
+        if (job.status === 'failed') app.toast('warning', job.message || t('更新失败'))
+        else if (job.status === 'ready') app.toast('success', t('更新包已就绪'))
+      }
+    } catch (error) {
+      if (updatePoll) window.clearInterval(updatePoll)
+      updatePoll = undefined
+      app.fromError(error, t('查询更新状态失败'))
+    }
+  }, 1000)
+}
+
+async function applyUpdate() {
+  if (!updateJob.value) return
+  applyingUpdate.value = true
+  try {
+    const result = await updatesApi.apply(updateJob.value.id)
+    updateJob.value.status = 'applied'
+    updateJob.value.statusLabel = t('已安排')
+    app.toast('success', result.message || t('更新已安排'))
+  } catch (error) {
+    app.fromError(error, t('应用更新失败'))
+  } finally {
+    applyingUpdate.value = false
+  }
+}
+
+onUnmounted(() => { if (updatePoll) window.clearInterval(updatePoll) })
 onMounted(async () => { await app.init(); await load() })
 </script>
 
@@ -97,6 +179,7 @@ onMounted(async () => { await app.init(); await load() })
         <p class="page-subtitle">{{ t('工具链和目录配置保存在本地 SQLite；修改后由同一核心逻辑供 Web UI 与 CLI 使用。') }}</p>
       </div>
       <div class="page-actions">
+        <button class="btn" @click="checkUpdate" :disabled="checkingUpdate"><span v-if="checkingUpdate" class="spinner"></span><Icon v-else name="refresh" :size="13" /> {{ t('检查更新') }}</button>
         <button class="btn" @click="testToolchain" :disabled="testing"><span v-if="testing" class="spinner"></span><Icon v-else name="activity" :size="13" /> {{ t('检测工具链') }}</button>
         <button class="btn" @click="importInput?.click()"><Icon name="upload" :size="13" /> {{ t('导入') }}</button>
         <a class="btn" href="/api/v1/settings/export"><Icon name="download" :size="13" /> {{ t('导出') }}</a>
@@ -208,6 +291,66 @@ onMounted(async () => { await app.init(); await load() })
         </div>
       </div>
     </div>
+
+    <div class="card" style="margin-top: 14px">
+      <div class="card-header">
+        <div>
+          <div class="card-title">{{ t('软件更新') }}</div>
+          <div class="card-subtitle">{{ t('从 GitHub Releases 检查新版本，确认后下载并安装') }}</div>
+        </div>
+        <span class="badge">{{ t('当前版本') }} {{ updateInfo?.currentVersion || '—' }}</span>
+      </div>
+      <div class="card-body">
+        <div v-if="!updateInfo" class="setting-group-copy">{{ t('点击“检查更新”从 GitHub 获取最新版本信息。') }}</div>
+        <div v-else-if="updateInfo.code === 'UP_TO_DATE'" class="notice">
+          <Icon name="check" :size="14" class="notice-icon" />
+          <div>{{ t('已是最新版本') }} · {{ updateInfo.latestVersion }}</div>
+        </div>
+        <div v-else-if="updateInfo.code !== 'UPDATE_AVAILABLE'" class="notice warning">
+          <Icon name="warning" :size="14" class="notice-icon" />
+          <div>{{ updateInfo.message }}<span v-if="updateInfo.suggestion"> · {{ updateInfo.suggestion }}</span></div>
+        </div>
+        <div v-else>
+          <div class="kv"><span>{{ t('最新版本') }}</span><span>{{ updateInfo.latestVersion }} · {{ updateInfo.releaseName }}</span></div>
+          <div class="kv"><span>{{ t('发布时间') }}</span><span>{{ formatTime(updateInfo.publishedAt) }}</span></div>
+          <div class="kv"><span>{{ t('当前平台安装包') }}</span><span>{{ updateInfo.assetName }} ({{ humanBytes(updateInfo.assetSize) }})</span></div>
+          <pre class="update-notes" style="white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 10px 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px;">{{ updateInfo.releaseNotes }}</pre>
+          <div class="page-actions">
+            <a class="btn" :href="updateInfo.htmlUrl" target="_blank" rel="noopener"><Icon name="download" :size="13" /> {{ t('打开发布页') }}</a>
+            <button class="btn btn-primary" :disabled="downloadingUpdate || !!updateJob" @click="startUpdateDownload">
+              <span v-if="downloadingUpdate" class="spinner"></span>
+              <Icon v-else name="download" :size="13" /> {{ t('下载并安装') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="updateJob" class="notice" style="margin-top: 10px; display: block">
+          <div class="kv"><span>{{ t('更新状态') }}</span><span>{{ updateJob.statusLabel }} · {{ updateJob.progress }}%</span></div>
+          <ProgressBar :value="updateJob.progress" :label="updateJob.message" :meta="updateJob.assetName" />
+          <div v-if="updateJob.status === 'ready'" class="page-actions" style="margin-top: 10px">
+            <button class="btn btn-primary" :disabled="applyingUpdate" @click="applyUpdate">
+              <span v-if="applyingUpdate" class="spinner"></span>
+              <Icon v-else name="check" :size="13" /> {{ t('确认安装') }}
+            </button>
+          </div>
+          <div v-if="updateJob.scriptPath" class="field-hint">{{ t('更新脚本') }}：{{ updateJob.scriptPath }}</div>
+        </div>
+      </div>
+    </div>
+
+    <AppModal v-model="updateModalOpen" :title="t('发现新版本')" :subtitle="t('请确认是否下载并安装该版本')" :wide="true">
+      <div v-if="updateInfo">
+        <div class="kv"><span>{{ t('当前版本') }}</span><span>{{ updateInfo.currentVersion }}</span></div>
+        <div class="kv"><span>{{ t('最新版本') }}</span><span>{{ updateInfo.latestVersion }}</span></div>
+        <div class="kv"><span>{{ t('安装包') }}</span><span>{{ updateInfo.assetName }} ({{ humanBytes(updateInfo.assetSize) }})</span></div>
+        <div class="setting-group-title" style="margin-top: 12px">{{ t('更新说明') }}</div>
+        <pre class="update-notes" style="white-space: pre-wrap; max-height: 260px; overflow: auto;">{{ updateInfo.releaseNotes }}</pre>
+      </div>
+      <template #footer>
+        <button class="btn" @click="updateModalOpen = false">{{ t('取消') }}</button>
+        <button class="btn btn-primary" @click="startUpdateDownload">{{ t('确认下载并安装') }}</button>
+      </template>
+    </AppModal>
 
   </div>
 </template>

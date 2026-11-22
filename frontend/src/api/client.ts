@@ -1,4 +1,4 @@
-import type { Envelope } from '../types'
+import type { Envelope, UpdateInfo, UpdateJob } from '../types'
 import { t } from '../i18n'
 
 export class ApiError extends Error {
@@ -56,6 +56,13 @@ export const api = {
   delete<T>(path: string): Promise<T> {
     return request<T>(path, { method: 'DELETE' })
   }
+}
+
+export const updatesApi = {
+  check: () => api.get<UpdateInfo>('/api/v1/updates/check'),
+  download: () => api.post<{ jobId: string; message: string }>('/api/v1/updates/download'),
+  job: (id: string) => api.get<UpdateJob>(`/api/v1/updates/job/${encodeURIComponent(id)}`),
+  apply: (jobId: string) => api.post<{ message: string; scriptPath: string }>('/api/v1/updates/apply', { jobId })
 }
 
 export function humanBytes(bytes: number | null | undefined): string {

@@ -12,6 +12,10 @@ The public version number starts at 1.0.0; it supersedes those internal builds.
 
 ### Added
 
+- In-app software update: GitHub Release check with semantic version
+  comparison, release notes preview, confirmed download with SHA256SUMS
+  verification, and a platform-specific apply script that replaces files only
+  after the running process exits (`/api/v1/updates/*`, Settings page entry).
 - Local model library: scan Safetensors directories, parse `config.json`, shard
   indexes, tokenizer files and Safetensors headers.
 - Model analysis: layer count, hidden size, attention/KV heads, vocabulary size,

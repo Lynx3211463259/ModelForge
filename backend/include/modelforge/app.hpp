@@ -1,6 +1,7 @@
 #pragma once
 
 #include "modelforge/api_server.hpp"
+#include "modelforge/update_service.hpp"
 #include "modelforge/converter.hpp"
 #include "modelforge/database.hpp"
 #include "modelforge/download_manager.hpp"
@@ -57,6 +58,7 @@ private:
     std::unique_ptr<WatchService> watch_;
     std::unique_ptr<WsServer> ws_;
     std::unique_ptr<ApiServer> api_;
+    std::unique_ptr<UpdateService> update_;
     bool initialized_ = false;
     bool stopped_ = false;
 

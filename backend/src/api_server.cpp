@@ -50,9 +50,11 @@ json taskForId(TaskManager& tasks, const std::string& id) {
 
 ApiServer::ApiServer(SettingsService& settings, ConverterService& converter, TaskManager& tasks,
                      SystemService& system, DownloadManager& downloads, LlamaRuntimeService& llama,
-                     QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws)
+                     QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws,
+                     UpdateService& update)
     : settings_(settings), converter_(converter), tasks_(tasks), system_(system), downloads_(downloads),
-      llama_(llama), quality_(quality), watch_(watch), events_(events), ws_(ws), server_(new httplib::Server()),
+      llama_(llama), quality_(quality), watch_(watch), events_(events), ws_(ws), update_(update),
+      server_(new httplib::Server()),
       routes_(new OpenApiRegistry(*server_)) {}
 
 ApiServer::~ApiServer() { stop(); }
@@ -135,6 +137,7 @@ void ApiServer::registerRoutes() {
     registerLlamaRoutes();
     registerQualityRoutes();
     registerWatchRoutes();
+    registerUpdateRoutes();
 
     routes_->Get("/api/v1/openapi.json", [this](const httplib::Request&, httplib::Response& res) {
         // Generated from the routes registered in this build, so the document always
@@ -1059,6 +1062,56 @@ bool ApiServer::running() const {
 
 int ApiServer::port() const {
     return settings_.get().port;
+}
+
+void ApiServer::registerUpdateRoutes() {
+    routes_->Get("/api/v1/updates/check", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, update_.check().toJson());
+    });
+
+    routes_->Post("/api/v1/updates/download", [this](const httplib::Request&, httplib::Response& res) {
+        std::string code;
+        std::string message;
+        const std::string id = update_.startDownload(code, message);
+        if (id.empty()) {
+            fail(res, code.empty() ? "DOWNLOAD_FAILED" : code,
+                 message.empty() ? "无法开始下载" : message, 409);
+            return;
+        }
+        ok(res, json{{"jobId", id}, {"message", message}});
+    });
+
+    routes_->Get(R"(/api/v1/updates/job/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const UpdateJob result = update_.job(idParam(req));
+        if (result.id.empty()) {
+            fail(res, "JOB_NOT_FOUND", "找不到更新任务", 404);
+            return;
+        }
+        ok(res, result.toJson());
+    });
+
+    routes_->Post("/api/v1/updates/apply", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) {
+            fail(res, "INVALID_JSON", error, 400);
+            return;
+        }
+        const std::string jobId = body.value("jobId", "");
+        if (jobId.empty()) {
+            fail(res, "INVALID_REQUEST", "缺少 jobId", 400);
+            return;
+        }
+        std::string code;
+        std::string message;
+        std::string scriptPath;
+        if (!update_.apply(jobId, code, message, scriptPath)) {
+            fail(res, code.empty() ? "APPLY_FAILED" : code, message,
+                 code == "UPDATE_NOT_READY" ? 409 : 500);
+            return;
+        }
+        ok(res, json{{"message", message}, {"scriptPath", scriptPath}});
+    });
 }
 
 } // namespace mf
