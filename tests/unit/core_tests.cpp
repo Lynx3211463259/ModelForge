@@ -71,9 +71,11 @@ void testHfParsing() {
            "accept nested model file");
 
     std::string pathError;
-    const mf::fs::path local = mf::HfClient::localPathFor(mf::pathFromUtf8("C:/models/root"),
-                                                          "sub/model.safetensors", pathError);
-    expect(pathError.empty() && mf::isPathInside(mf::pathFromUtf8("C:/models/root"), local),
+    // Use a real absolute directory so the check behaves identically on Windows and
+    // POSIX: a drive-letter path is relative on POSIX and resolves against the cwd.
+    const mf::fs::path root = mf::fs::temp_directory_path() / "mf-hf-root";
+    const mf::fs::path local = mf::HfClient::localPathFor(root, "sub/model.safetensors", pathError);
+    expect(pathError.empty() && mf::isPathInside(root, local),
            "local path stays inside destination");
 
     expect(mf::HfClient::classifyFile("model-00001-of-00002.safetensors") == "safetensors", "classify safetensors");

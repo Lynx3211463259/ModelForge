@@ -67,7 +67,9 @@ if(WIN32)
   # Embed the same icon shipped with the Web UI into modelforge.exe. The ICO is
   # generated from docs/images/logo.png (see scripts/generate-icons.py).
   enable_language(RC)
-  file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/frontend/public/favicon.ico" MODELEFORGE_ICON)
+  # Forward slashes matter here: Resource Compiler strings treat \a and \f as
+  # escape sequences, which corrupts paths such as D:\a\...\frontend\... on CI.
+  file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/frontend/public/favicon.ico" MODELEFORGE_ICON)
   configure_file(backend/modelforge.rc.in ${CMAKE_CURRENT_BINARY_DIR}/modelforge.rc @ONLY)
   target_sources(modelforge PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modelforge.rc)
   target_compile_definitions(modelforge PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0601)
