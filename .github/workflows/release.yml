@@ -46,10 +46,15 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
 
-      - name: Build
+      - name: Build Web UI
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build backend and run tests
         shell: msys2 {0}
         run: |
-          cd frontend && npm ci && npm run build && cd ..
           cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build-ci -j 4
           ctest --test-dir build-ci --output-on-failure
@@ -69,7 +74,26 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 "$stage.zip").Hash.ToLowerInvariant()
           "$hash  $stage.zip" | Out-File -Encoding ascii "$stage.zip.sha256"
 
+      - name: Check whether the release already exists
+        id: release_check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if (-not $tag) { $tag = "${{ github.ref_name }}" }
+          $code = & curl.exe -s -o NUL -w "%{http_code}" -H "Authorization: Bearer $env:GH_TOKEN" `
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag"
+          if ($code -eq "200") {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "exists=true"
+            Write-Host "Release $tag already exists; skipping asset upload to avoid overwriting published files."
+          }
+          else {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "exists=false"
+          }
+
       - name: Upload release assets
+        if: steps.release_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
