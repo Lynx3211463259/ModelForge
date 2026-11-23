@@ -40,6 +40,7 @@ add_executable(modelforge
   backend/src/converter.cpp
   backend/src/task_manager.cpp
   backend/src/gguf_reader.cpp
+  backend/src/model_deleter.cpp
   backend/src/system_service.cpp
   backend/src/http_client.cpp
   backend/src/hf_client.cpp
@@ -92,14 +93,16 @@ install(TARGETS modelforge RUNTIME DESTINATION bin)
 install(DIRECTORY frontend/dist/ DESTINATION share/modelforge/web OPTIONAL)
 
 enable_testing()
-add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp)
+add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp backend/src/database.cpp backend/src/model_deleter.cpp)
 target_include_directories(modelforge_tests PRIVATE backend/include backend/third_party)
 if(WIN32)
   target_compile_definitions(modelforge_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0601)
-  target_link_libraries(modelforge_tests PRIVATE ws2_32 winhttp crypt32 psapi Threads::Threads)
+  target_link_libraries(modelforge_tests PRIVATE sqlite3 ws2_32 winhttp crypt32 psapi Threads::Threads)
   if(MINGW)
     target_link_options(modelforge_tests PRIVATE -static -static-libgcc -static-libstdc++)
   endif()
+else()
+  target_link_libraries(modelforge_tests PRIVATE sqlite3 Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 target_compile_definitions(modelforge_tests PRIVATE MODELEFORGE_VERSION="${PROJECT_VERSION}")
 add_test(NAME core_tests COMMAND modelforge_tests)

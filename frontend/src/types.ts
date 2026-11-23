@@ -205,3 +205,17 @@ export interface UpdateJob {
   totalBytes: number
   scriptPath: string
 }
+
+export interface ModelDeleteResult {
+  modelId: string
+  modelName: string
+  deleteFiles: boolean
+  removedFiles: number
+  freedBytes: number
+  freedLabel: string
+  missingFiles: string[]
+  sharedFiles: string[]
+  unsafeFiles: string[]
+  keptArtifacts: string[]
+  warnings: string[]
+}

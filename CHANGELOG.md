@@ -8,6 +8,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Deleting a model can now remove its files from disk. `DELETE /models/{id}`
+  accepts `deleteFiles=true`; the Web UI always uses it after an explicit
+  confirmation and reports removed count, freed space and warnings.
+- Deletion refuses to run while the model is referenced by an active
+  conversion task or an enabled workflow (`409 MODEL_IN_USE`), keeps files
+  shared with other model records or located outside the model directory, and
+  keeps the record when a file cannot be removed so the user can retry.
+
 - Update channels for the in-app updater: `stable` reads `/releases/latest`,
   `nightly` prefers prereleases (falling back to stable), and `auto` picks the
   highest version of any kind. Selectable in Settings, persisted as

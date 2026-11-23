@@ -298,11 +298,8 @@ bool SystemService::updateModel(const std::string& id, const json& patch, std::s
     return true;
 }
 
-bool SystemService::deleteModel(const std::string& id, std::string& error) {
-    const auto rows = db_.query("SELECT id FROM models WHERE id=?", {id});
-    if (rows.empty()) { error = "模型不存在"; return false; }
-    db_.query("DELETE FROM models WHERE id=?", {id});
-    return true;
+ModelDeleteResult SystemService::deleteModel(const std::string& id, bool deleteFiles) {
+    return model_delete::erase(db_, id, deleteFiles);
 }
 
 json SystemService::history(int limit) {

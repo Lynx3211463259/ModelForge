@@ -213,6 +213,11 @@ unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
 
 ## 9. 软件更新（跨平台）
 
+- 模型删除使用 `ghc::filesystem`，各平台一致：只删除 `model_files` 登记且位于
+  模型目录内的文件，目录共享或文件被其他模型引用时保留；删除空目录用
+  `remove`（非递归）。Windows 文件被占用时返回 `FILE_DELETE_FAILED`（系统错误
+  码 32），POSIX 权限不足返回 `PERMISSION_DENIED`（EACCES），错误文本固定为
+  UTF-8，避免本地化消息破坏 JSON 响应。
 - 更新通道 `updateChannel`（`stable` / `nightly` / `auto`）为全平台共用设置：
   `stable` 只查正式 Release，`nightly` 优先预发布并在无预发布时回退，
   `auto` 取版本号最高者。选择逻辑抽为纯函数 `updates::selectReleaseIndex`，

@@ -988,6 +988,12 @@ const messages: Record<string, string> = {
   "稳定版只接收正式发布；每日构建优先预发布；自动取版本号最高的构建。": "Stable only accepts official releases; nightly prefers prereleases; auto takes the build with the highest version.",
   "更新通道已切换": "Update channel switched",
   "所选更新通道暂无可用的版本。": "No release is available on the selected channel.",
+  "删除“{0}”及其磁盘模型文件？此操作不可恢复。": "Delete \"{0}\" and its model files from disk? This cannot be undone.",
+  "已删除模型及 {0} 个文件": "Model and {0} file(s) deleted",
+  "已删除模型记录（没有可删除的文件）": "Model record deleted (no files to remove)",
+  "释放 {0}": "{0} freed",
+  "删除模型及磁盘文件": "Delete model and files",
+  "删除失败，模型记录已保留": "Delete failed, model record kept",
 }
 
 export default messages

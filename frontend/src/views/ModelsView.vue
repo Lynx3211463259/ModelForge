@@ -3,7 +3,7 @@ import { t } from '../i18n'
 import { computed, onMounted, ref } from 'vue'
 import { api, formatTime, humanBytes, humanNumber, relativeTime } from '../api/client'
 import { useRoute } from 'vue-router'
-import type { Model } from '../types'
+import type { Model, ModelDeleteResult } from '../types'
 import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -119,13 +119,20 @@ async function toggleFavorite(model: Model) {
 }
 
 async function removeModel(model: Model) {
-  if (!window.confirm(t('仅删除“{0}”的模型库记录？磁盘文件不会被删除。', [model.name]))) return
+  if (!window.confirm(t('删除“{0}”及其磁盘模型文件？此操作不可恢复。', [model.name]))) return
   try {
-    await api.delete(`/api/v1/models/${model.id}`)
+    const result = await api.delete<ModelDeleteResult>(`/api/v1/models/${model.id}?deleteFiles=true`)
     models.value = models.value.filter((item) => item.id !== model.id)
-    app.toast('success', t('模型记录已删除'), t('磁盘模型文件保持不变'))
+    const detail = [t('释放 {0}', [result.freedLabel || humanBytes(result.freedBytes)]), ...(result.warnings || [])]
+      .filter(Boolean)
+      .join(' · ')
+    if (result.removedFiles > 0) {
+      app.toast('success', t('已删除模型及 {0} 个文件', [result.removedFiles]), detail)
+    } else {
+      app.toast('success', t('已删除模型记录（没有可删除的文件）'), detail)
+    }
   } catch (error) {
-    app.fromError(error, t('删除失败'))
+    app.fromError(error, t('删除失败，模型记录已保留'))
   }
 }
 
@@ -219,7 +226,7 @@ onMounted(async () => {
             {{ t('转换') }} <Icon name="arrow" :size="12" />
           </router-link>
           <button class="icon-btn" :title="t('版本树')" @click="openVersions(model)"><Icon name="layers" :size="13" /></button>
-          <button class="icon-btn" :title="t('删除记录（不删文件）')" @click="removeModel(model)"><Icon name="trash" :size="13" /></button>
+          <button class="icon-btn" :title="t('删除模型及磁盘文件')" @click="removeModel(model)"><Icon name="trash" :size="13" /></button>
         </div>
         <div class="faint tiny" style="margin-top: 9px">{{ t('导入于 {0}', [relativeTime(model.createdAt)]) }}</div>
       </article>

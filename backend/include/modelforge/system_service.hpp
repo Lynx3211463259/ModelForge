@@ -2,6 +2,7 @@
 
 #include "modelforge/converter.hpp"
 #include "modelforge/database.hpp"
+#include "modelforge/model_deleter.hpp"
 #include "modelforge/settings.hpp"
 #include "modelforge/task_manager.hpp"
 
@@ -22,7 +23,10 @@ public:
     json importModel(const std::string& path, std::string& code, std::string& error);
     json reanalyzeModel(const std::string& id, std::string& error);
     bool updateModel(const std::string& id, const json& patch, std::string& error);
-    bool deleteModel(const std::string& id, std::string& error);
+    // Deletes the record and, when deleteFiles is true, the files registered
+    // for it. Returns a structured result so the API can explain partial
+    // outcomes (missing/shared files, permission failures).
+    ModelDeleteResult deleteModel(const std::string& id, bool deleteFiles);
     json history(int limit);
     json quantizationProfiles();
     json saveQuantizationProfile(const std::string& id, const json& body);

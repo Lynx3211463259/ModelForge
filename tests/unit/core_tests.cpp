@@ -1,6 +1,8 @@
 #include "modelforge/crypto.hpp"
 #include "modelforge/hf_client.hpp"
+#include "modelforge/database.hpp"
 #include "modelforge/http_client.hpp"
+#include "modelforge/model_deleter.hpp"
 #include "modelforge/update_service.hpp"
 #include "modelforge/util.hpp"
 
@@ -149,6 +151,126 @@ void testUpdateHelpers() {
     expect(job.toJson().value("status", "") == "ready", "update job projection");
 }
 
+void testModelDeletion() {
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-del-" + mf::newId("t"));
+    std::error_code ec;
+    mf::fs::create_directories(base, ec);
+    mf::Database db;
+    std::string dbError;
+    expect(db.open(mf::pathToUtf8(base / "test.sqlite"), dbError), "delete tests: open database");
+
+    auto makeModel = [&](const std::string& id, const std::string& name, const mf::fs::path& dir) {
+        mf::fs::create_directories(dir, ec);
+        db.query("INSERT INTO models(id,name,path,status,supported,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                 {id, name, mf::pathToUtf8(dir), "READY", 1, mf::isoNow(), mf::isoNow()});
+    };
+    auto addFile = [&](const std::string& id, const mf::fs::path& file, const std::string& content) {
+        mf::writeTextFile(file, content);
+        db.query("INSERT INTO model_files(model_id,path,file_name,size,kind,valid) VALUES(?,?,?,?,?,?)",
+                 {id, mf::pathToUtf8(file), mf::pathToUtf8(file.filename()),
+                  static_cast<int64_t>(content.size()), "weights", 1});
+    };
+    auto modelCount = [&](const std::string& id) {
+        return db.query("SELECT COUNT(*) AS n FROM models WHERE id=?", {id})[0].value("n", 0ll) != 0;
+    };
+    auto fileRowCount = [&](const std::string& id) {
+        return db.query("SELECT COUNT(*) AS n FROM model_files WHERE model_id=?", {id})[0].value("n", 0ll) != 0;
+    };
+
+    // 1. Normal deletion removes record, file rows and files.
+    const mf::fs::path dirA = base / "modelA";
+    makeModel("m_a", "A", dirA);
+    addFile("m_a", dirA / "a.safetensors", "weights-a");
+    addFile("m_a", dirA / "config.json", "{}");
+    const mf::ModelDeleteResult okA = mf::model_delete::erase(db, "m_a", true);
+    expect(okA.ok, "delete record and files succeeds");
+    expect(!mf::fs::exists(dirA / "a.safetensors") && !mf::fs::exists(dirA / "config.json"),
+           "registered model files are removed");
+    expect(!modelCount("m_a"), "model record removed");
+    expect(!fileRowCount("m_a"), "model_files rows removed");
+    expect(okA.details.value("removedFiles", 0) == 2, "removed file count reported");
+    expect(okA.details.value("freedBytes", 0ll) > 0, "freed bytes reported");
+
+    // 2. Missing files are tolerated and reported.
+    const mf::fs::path dirB = base / "modelB";
+    makeModel("m_b", "B", dirB);
+    db.query("INSERT INTO model_files(model_id,path,file_name,size,kind,valid) VALUES(?,?,?,?,?,?)",
+             {"m_b", mf::pathToUtf8(dirB / "gone.safetensors"), "gone.safetensors", 0ll, "weights", 1});
+    const mf::ModelDeleteResult missing = mf::model_delete::erase(db, "m_b", true);
+    expect(missing.ok && missing.details["missingFiles"].size() == 1, "missing file is reported and tolerated");
+    expect(!modelCount("m_b"), "record removed even when a file is missing");
+
+    // 3. Files referenced by another model are never deleted.
+    const mf::fs::path dirC = base / "modelC";
+    makeModel("m_c", "C", dirC);
+    addFile("m_c", dirC / "shared.safetensors", "shared");
+    makeModel("m_d", "D", base / "modelD");
+    db.query("INSERT INTO model_files(model_id,path,file_name,size,kind,valid) VALUES(?,?,?,?,?,?)",
+             {"m_d", mf::pathToUtf8(dirC / "shared.safetensors"), "shared.safetensors", 6ll, "weights", 1});
+    const mf::ModelDeleteResult shared = mf::model_delete::erase(db, "m_c", true);
+    expect(shared.ok, "deletion succeeds when a file is shared");
+    expect(mf::fs::exists(dirC / "shared.safetensors"), "shared file kept on disk");
+    expect(shared.details["sharedFiles"].size() == 1, "shared file reported");
+    expect(modelCount("m_d"), "other model record untouched");
+
+    // 4. Paths outside the model directory are refused.
+    const mf::fs::path dirE = base / "modelE";
+    makeModel("m_e", "E", dirE);
+    const mf::fs::path outside = base / "outside.txt";
+    addFile("m_e", outside, "keep me");
+    const mf::ModelDeleteResult unsafe = mf::model_delete::erase(db, "m_e", true);
+    expect(unsafe.ok && mf::fs::exists(outside), "file outside the model directory is kept");
+    expect(unsafe.details["unsafeFiles"].size() == 1, "outside path reported");
+
+    // 5. Active conversion tasks block deletion.
+    const mf::fs::path dirF = base / "modelF";
+    makeModel("m_f", "F", dirF);
+    addFile("m_f", dirF / "f.safetensors", "f");
+    db.query("INSERT INTO conversion_tasks(id,model_id,model_name,status,stage,input_path,params_json,created_at) "
+             "VALUES(?,?,?,?,?,?,?,?)",
+             {"task_in_use", "m_f", "F", "RUNNING", "converting", mf::pathToUtf8(dirF), "{}",
+              static_cast<int64_t>(mf::nowMs())});
+    const mf::ModelDeleteResult inUse = mf::model_delete::erase(db, "m_f", true);
+    expect(!inUse.ok && inUse.code == "MODEL_IN_USE", "running task blocks deletion");
+    expect(mf::fs::exists(dirF / "f.safetensors") && modelCount("m_f"), "blocked deletion keeps record and files");
+    db.query("UPDATE conversion_tasks SET status='SUCCEEDED' WHERE id=?", {"task_in_use"});
+
+    // 6. Enabled workflows that reference the model block deletion.
+    const mf::fs::path dirG = base / "modelG";
+    makeModel("m_g", "G", dirG);
+    addFile("m_g", dirG / "g.safetensors", "g");
+    const std::string definition =
+        mf::json{{"steps", mf::json::array({mf::json{{"modelId", "m_g"}}})}}.dump();
+    db.query("INSERT INTO workflows(id,name,description,definition_json,enabled,created_at,updated_at) "
+             "VALUES(?,?,?,?,1,?,?)",
+             {"wf_ref", "ref", "", definition, mf::isoNow(), mf::isoNow()});
+    const mf::ModelDeleteResult wfBlocked = mf::model_delete::erase(db, "m_g", true);
+    expect(!wfBlocked.ok && wfBlocked.code == "MODEL_IN_USE", "enabled workflow blocks deletion");
+    db.query("UPDATE workflows SET enabled=0 WHERE id=?", {"wf_ref"});
+    const mf::ModelDeleteResult afterWorkflow = mf::model_delete::erase(db, "m_g", true);
+    expect(afterWorkflow.ok, "deletion proceeds once the workflow is disabled");
+
+    // 7. deleteFiles=false keeps the files but removes the record.
+    const mf::fs::path dirH = base / "modelH";
+    makeModel("m_h", "H", dirH);
+    addFile("m_h", dirH / "h.safetensors", "h");
+    const mf::ModelDeleteResult keep = mf::model_delete::erase(db, "m_h", false);
+    expect(keep.ok && mf::fs::exists(dirH / "h.safetensors") && !modelCount("m_h"),
+           "deleteFiles=false keeps files and removes the record");
+
+    // 8. Helpers: error classification and path containment.
+    expect(mf::model_delete::classifyFileError(std::make_error_code(std::errc::permission_denied)) ==
+               "PERMISSION_DENIED", "permission error classified");
+    expect(mf::model_delete::classifyFileError(std::make_error_code(std::errc::no_such_file_or_directory)) ==
+               "MISSING_FILE", "missing-file error classified");
+    expect(mf::model_delete::classifyFileError(std::error_code()).empty(), "clean error has no code");
+    expect(mf::isPathInside(base, base / "inside.txt"), "path containment accepts child");
+    expect(!mf::isPathInside(base / "a", base / "ab"), "path containment rejects sibling prefix");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
 } // namespace
 
 int main() {
@@ -159,6 +281,7 @@ int main() {
     testHfParsing();
     testRedaction();
     testUpdateHelpers();
+    testModelDeletion();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
         return 1;

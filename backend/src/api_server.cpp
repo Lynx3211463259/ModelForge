@@ -238,10 +238,20 @@ void ApiServer::registerModelRoutes() {
         ok(res, system_.getModel(idParam(req)));
     });
     routes_->Delete(R"(/api/v1/models/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
-        std::string error;
-        if (!system_.deleteModel(idParam(req), error)) { fail(res, "MODEL_DELETE_FAILED", error, 404); return; }
-        ok(res, json{{"deleted", true}, {"filesDeleted", false},
-                     {"note", "仅删除模型库记录，磁盘上的模型文件未被修改。"}});
+        // deleteFiles defaults to false so older clients keep the record-only
+        // behaviour; the Web UI always sends true after the user confirms.
+        const std::string flag = toLower(queryValue(req, "deleteFiles", "false"));
+        const bool deleteFiles = flag == "true" || flag == "1" || flag == "yes";
+        const ModelDeleteResult result = system_.deleteModel(idParam(req), deleteFiles);
+        if (!result.ok) {
+            int status = 500;
+            if (result.code == "MODEL_NOT_FOUND") status = 404;
+            else if (result.code == "MODEL_IN_USE") status = 409;
+            else if (result.code == "PERMISSION_DENIED") status = 403;
+            fail(res, result.code, result.message, status, result.suggestion, result.details);
+            return;
+        }
+        ok(res, result.details);
     });
     routes_->Post(R"(/api/v1/models/([^/]+)/analyze)", [this](const httplib::Request& req, httplib::Response& res) {
         std::string error;

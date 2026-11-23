@@ -123,7 +123,28 @@ Server-Sent Events，`text/event-stream`。每 15 秒心跳。
 
 ### DELETE /models/{id}
 
-只删除模型库记录，不删除磁盘文件。
+删除模型记录。查询参数 `deleteFiles=true` 时同时删除该模型在 `model_files`
+中登记的磁盘文件；Web UI 在用户确认后使用该模式，`deleteFiles` 缺省为
+`false` 以兼容旧客户端。
+
+返回 `modelId`、`modelName`、`deleteFiles`、`removedFiles`、`freedBytes`、
+`freedLabel`、`missingFiles`、`sharedFiles`、`unsafeFiles`、`keptArtifacts`、
+`warnings`。
+
+安全约束与错误码：
+
+- 只删除模型目录内的文件；不在目录内或不是登记过的路径记入 `unsafeFiles`
+  并保留，避免误删无关文件。
+- 仍被其他模型记录引用的文件记入 `sharedFiles` 并保留。
+- 模型仍被 `QUEUED` / `RUNNING` / `PAUSED` 转换任务或启用中的工作流引用时
+  返回 `409 MODEL_IN_USE`（`details.tasks` / `details.workflows`），不删除
+  任何内容。
+- 文件删除失败时返回 `403 PERMISSION_DENIED`（全部为权限不足）或
+  `500 FILE_DELETE_FAILED`，`details.failures` 列出文件、稳定错误码与系统
+  错误码；此时模型记录保留，修复占用或权限后可重试。
+- 磁盘上已不存在的文件记入 `missingFiles`，不算失败。
+- 由该模型生成的 GGUF 产物不删除，记入 `keptArtifacts`。
+- 成功返回 `200`，`removedFiles` 与 `freedBytes` 表示实际删除数量与释放空间。
 
 ### POST /models/{id}/analyze
 
