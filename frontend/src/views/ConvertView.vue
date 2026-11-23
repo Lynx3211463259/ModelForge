@@ -369,7 +369,7 @@ onUnmounted(() => {
     <div class="page-intro">
       <div>
         <h1 class="page-title">{{ t('模型转换') }}</h1>
-        <p class="page-subtitle">{{ t('Safetensors 转换与 GGUF 量化分为两个阶段。进度来自真实输出文件增长，不伪造百分比。') }}</p>
+        <p class="page-subtitle">{{ t('Safetensors 转换与 GGUF 量化分为两个阶段。进度来自真实输出文件增长。') }}</p>
       </div>
       <div class="page-actions">
         <span class="badge" :class="app.capabilities?.conversionReady ? 'success' : 'danger'"> {{ t('{0}', [app.capabilities?.conversionReady ? t('转换链路可用') : t('转换链路未就绪')]) }}</span>

@@ -222,7 +222,7 @@ onMounted(async () => { await app.init(); await load() })
 
           <div class="setting-group">
             <div class="setting-group-title">{{ t('llama.cpp 工具') }}</div>
-            <div class="setting-group-copy">{{ t('量化类型从 llama-quantize --help 动态解析；缺失时不会展示虚假的可执行类型。') }}</div>
+            <div class="setting-group-copy">{{ t('量化类型从 llama-quantize --help 动态解析。') }}</div>
             <div class="notice warning" style="margin-bottom: 10px">
               <Icon name="info" :size="13" class="notice-icon" />
               <div>
