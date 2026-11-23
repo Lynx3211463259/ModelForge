@@ -162,8 +162,13 @@ void ApiServer::registerRoutes() {
 
 void ApiServer::registerSystemRoutes() {
     routes_->Get("/api/v1/health", [this](const httplib::Request&, httplib::Response& res) {
+        const int configuredPort = settings_.get().port;
+        const bool portFallback = port() != configuredPort;
         ok(res, json{{"status", "ok"}, {"version", MODELEFORGE_VERSION}, {"uptimeMs", nowMs() - startedAt_},
-                     {"time", isoNow()}, {"websocketPort", ws_.port()}, {"websocketRunning", ws_.running()}});
+                     {"time", isoNow()}, {"port", port()}, {"configuredPort", configuredPort},
+                     {"portFallback", portFallback},
+                     {"portFallbackReason", portFallback ? portFallbackReason_ : ""},
+                     {"websocketPort", ws_.port()}, {"websocketRunning", ws_.running()}});
     });
     routes_->Get("/api/v1/system/summary", [this](const httplib::Request&, httplib::Response& res) {
         ok(res, system_.summary());
@@ -1052,14 +1057,21 @@ void ApiServer::registerWatchRoutes() {
     });
 }
 
-bool ApiServer::listen(std::string& error) {
+bool ApiServer::listen(std::string& error, int portOverride) {
     const AppSettings s = settings_.get();
-    Logger::instance().info("HTTP listening on " + s.bindAddress + ":" + std::to_string(s.port));
-    if (!server_->listen(s.bindAddress, s.port)) {
-        error = "HTTP 端口监听失败: " + s.bindAddress + ":" + std::to_string(s.port);
+    const int port = portOverride > 0 ? portOverride : s.port;
+    Logger::instance().info("HTTP listening on " + s.bindAddress + ":" + std::to_string(port));
+    if (!server_->listen(s.bindAddress, port)) {
+        error = "HTTP 端口监听失败: " + s.bindAddress + ":" + std::to_string(port);
         return false;
     }
+    actualPort_ = port;
     return true;
+}
+
+void ApiServer::setRuntimePort(int actualPort, const std::string& reason) {
+    actualPort_ = actualPort;
+    portFallbackReason_ = reason;
 }
 
 void ApiServer::stop() {
@@ -1071,7 +1083,7 @@ bool ApiServer::running() const {
 }
 
 int ApiServer::port() const {
-    return settings_.get().port;
+    return actualPort_ > 0 ? actualPort_ : settings_.get().port;
 }
 
 void ApiServer::registerUpdateRoutes() {

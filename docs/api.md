@@ -41,7 +41,11 @@ Base URL：`http://127.0.0.1:8080/api/v1`
     "status": "ok",
     "version": "1.0.0",
     "uptimeMs": 12345,
-    "websocketPort": 8081,
+    "port": 8081,
+    "configuredPort": 8080,
+    "portFallback": true,
+    "portFallbackReason": "设置端口被占用",
+    "websocketPort": 8082,
     "websocketRunning": true
   }
 }
@@ -489,7 +493,11 @@ POST /settings/import
 POST /settings/test
 ```
 
-`PUT /settings` 为局部合并。端口变更返回 `restartRequired=true`。
+`PUT /settings` 为局部合并。端口必须是 1024-65535 的整数，非法值返回
+`400 SETTINGS_INVALID`，不会静默改为默认值。端口变更返回
+`restartRequired=true`；新端口在下次启动时生效。若设置端口被占用，本次启动
+只临时换用一个空闲端口（详见 `GET /health` 的 `port` / `configuredPort` /
+`portFallback`），设置文件不会被改写。`autoOpenBrowser` 可在设置中随时开关。
 
 ### POST /settings/test
 

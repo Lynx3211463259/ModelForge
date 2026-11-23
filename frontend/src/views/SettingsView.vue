@@ -293,15 +293,16 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
               <div class="field"><label class="field-label">{{ t('CPU 线程数') }}</label><input v-model.number="form.threads" type="number" min="1" max="512" class="input" /></div>
               <div class="field"><label class="field-label">{{ t('最大并发任务') }}</label><input v-model.number="form.maxConcurrent" type="number" min="1" max="8" class="input" /></div>
             </div>
-            <label class="check"><input v-model="form.autoOpenBrowser" type="checkbox" /><span>{{ t('启动时自动打开浏览器') }}<small>{{ t('仅对 serve 模式生效') }}</small></span></label>
+            <label class="check"><input v-model="form.autoOpenBrowser" type="checkbox" /><span>{{ t('启动时自动打开浏览器') }}<small>{{ t('关闭后不再自动打开；命令行 --no-browser 只影响本次启动。') }}</small></span></label>
           </div>
 
           <div class="setting-group">
             <div class="setting-group-title">{{ t('Web 服务') }}</div>
             <div class="field-row">
               <div class="field"><label class="field-label">{{ t('监听地址') }}</label><input v-model="form.bindAddress" class="input mono" disabled /><div class="field-hint">{{ t('当前构建固定监听本机回环地址。') }}</div></div>
-              <div class="field"><label class="field-label">{{ t('端口') }}</label><input v-model.number="form.port" type="number" min="1024" max="65535" class="input" /></div>
+              <div class="field"><label class="field-label">{{ t('端口') }}</label><input v-model.number="form.port" type="number" min="1024" max="65535" class="input" /><div class="field-hint">{{ t('端口变更后需重启生效（1024-65535）。被占用时本次启动会临时换用空闲端口，不会改写此设置。') }}</div></div>
             </div>
+            <div class="kv"><span>{{ t('当前实际端口') }}</span><span class="mono">{{ app.health?.port || form.port }}</span></div>
             <div class="field-row" style="margin-top: 8px">
               <div class="field">
                 <label class="field-label">{{ t('主题') }}</label>

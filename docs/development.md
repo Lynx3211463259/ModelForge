@@ -137,8 +137,8 @@ build-win\bin\modelforge.exe serve --root C:\path\to\ModelForge
 ```text
 --root <dir>      ModelForge 根目录
 --data <dir>      SQLite、日志、报告目录
---port <n>        HTTP 端口
---no-browser      不自动打开浏览器
+--port <n>        仅本次启动使用的 HTTP 端口，不写入设置
+--no-browser      仅本次启动不自动打开浏览器，不写入设置
 ```
 
 ## 7. 测试

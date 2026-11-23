@@ -114,18 +114,8 @@ bool App::initialize(std::string& error) {
     db_.reset(new Database());
     if (!db_->open(pathToUtf8(dataDir / "modelforge.db"), error)) return false;
     settings_.reset(new SettingsService(*db_, options_.root, dataDir, runtimeBase));
-    if (options_.portOverride > 0) {
-        std::string settingsError;
-        settings_->update(json{{"port", options_.portOverride}}, settingsError);
-        if (!settingsError.empty()) {
-            error = settingsError;
-            return false;
-        }
-    }
-    if (options_.noBrowser) {
-        std::string settingsError;
-        settings_->update(json{{"autoOpenBrowser", false}}, settingsError);
-    }
+    // --port and --no-browser intentionally affect only this run. They must
+    // never overwrite the values the user saved in Settings.
     converter_.reset(new ConverterService(*settings_));
     events_.reset(new EventHub());
     tasks_.reset(new TaskManager(*db_, *settings_, *converter_, *events_));
@@ -197,43 +187,60 @@ int App::runServer() {
         std::cerr << "API 初始化失败: " << error << std::endl;
         return 1;
     }
-    AppSettings s = settings_->get();
+    const AppSettings s = settings_->get();
+    const int configuredPort = s.port;
+    if (configuredPort < 1024 || configuredPort > 65535) {
+        error = "设置中的端口无效：" + std::to_string(configuredPort) + "，必须位于 1024-65535。";
+        Logger::instance().error(error);
+        std::cerr << error << std::endl;
+        stop();
+        return 2;
+    }
+    if (options_.portOverride > 0 && (options_.portOverride < 1024 || options_.portOverride > 65535)) {
+        error = "命令行端口无效：" + std::to_string(options_.portOverride) + "，必须位于 1024-65535。";
+        Logger::instance().error(error);
+        std::cerr << error << std::endl;
+        stop();
+        return 2;
+    }
+    const int requestedPort = options_.portOverride > 0 ? options_.portOverride : configuredPort;
 
-    // Port auto-fallback: probe the configured port before binding. When it is taken,
-    // scan upwards for a free one and persist the choice so the UI, health endpoint
-    // and CLI all report the port that is actually used.
+    // The saved port is authoritative. A busy port only changes this process's
+    // bind port; the persisted setting is never touched by the fallback.
     std::string portOutcome;
-    const int preferredPort = s.port;
-    const int listenPort = resolveListenPort(preferredPort, s.bindAddress, portOutcome);
+    const int listenPort = resolveListenPort(requestedPort, s.bindAddress, portOutcome);
     if (listenPort <= 0) {
-        error = "端口 " + std::to_string(preferredPort) + " 及其后 50 个候选端口均被占用，无法启动 Web 服务。"
+        error = "端口 " + std::to_string(requestedPort) + " 及其后 50 个候选端口均被占用，无法启动 Web 服务。"
                 "请关闭占用该端口的进程，或用 --port 指定其他起始端口。";
         Logger::instance().error(error);
         std::cerr << error << std::endl;
         stop();
         return 2;
     }
-    if (listenPort != preferredPort) {
-        std::string settingsError;
-        settings_->update(json{{"port", listenPort}}, settingsError);
-        Logger::instance().warn("端口 " + std::to_string(preferredPort) + " 已被占用，自动切换到 " +
-                                std::to_string(listenPort) +
-                                (settingsError.empty() ? "；新端口已写回设置。"
-                                                       : "；写回设置失败：" + settingsError));
-        s = settings_->get();
+    std::string fallbackReason;
+    if (options_.portOverride > 0 && requestedPort != configuredPort) {
+        fallbackReason = "命令行 --port 指定";
+    }
+    if (listenPort != requestedPort) {
+        if (!fallbackReason.empty()) fallbackReason += "，且该端口被占用";
+        else fallbackReason = "设置端口被占用";
+        Logger::instance().warn("端口 " + std::to_string(requestedPort) + " 已被占用，本次启动临时切换到 " +
+                                std::to_string(listenPort) + "；设置中的端口 " +
+                                std::to_string(configuredPort) + " 保持不变。");
     } else if (portOutcome == "unknown") {
-        Logger::instance().warn("端口 " + std::to_string(preferredPort) +
+        Logger::instance().warn("端口 " + std::to_string(requestedPort) +
                                 " 的占用状态检测失败，将尝试直接绑定，失败时再自动回退。");
     }
+    api_->setRuntimePort(listenPort, fallbackReason);
 
-    // WebSocket listens next to the API port; same availability probe, and it degrades
-    // to SSE/polling when no nearby port is free instead of failing startup.
+    // WebSocket listens next to the actual API port; same availability probe, and it
+    // degrades to SSE/polling when no nearby port is free instead of failing startup.
     int wsPort = 0;
-    for (int candidate : {s.port + 1, s.port - 1}) {
+    for (int candidate : {listenPort + 1, listenPort - 1}) {
         if (candidate >= 1024 && candidate <= 65535 && checkTcpPort(candidate, s.bindAddress) == 1) { wsPort = candidate; break; }
     }
     for (int delta = 2; wsPort == 0 && delta <= 20; ++delta) {
-        const int candidate = s.port + delta;
+        const int candidate = listenPort + delta;
         if (candidate <= 65535 && checkTcpPort(candidate, s.bindAddress) == 1) wsPort = candidate;
     }
     if (wsPort == 0) {
@@ -252,26 +259,24 @@ int App::runServer() {
     downloads_->start();
     watch_->start();
     if (s.autoOpenBrowser && !options_.noBrowser) {
-        std::thread([this, port = s.port] { openBrowser(port); }).detach();
+        std::thread([this, port = listenPort] { openBrowser(port); }).detach();
     }
-    Logger::instance().info("ModelForge Web UI: http://" + s.bindAddress + ":" + std::to_string(s.port));
+    Logger::instance().info("ModelForge Web UI: http://" + s.bindAddress + ":" + std::to_string(listenPort));
 
     // The probe and the bind are not atomic: if something grabs the port in between,
-    // fall back once more instead of giving up.
-    bool listened = api_->listen(error);
+    // fall back once more instead of giving up. Still no settings write.
+    bool listened = api_->listen(error, listenPort);
     if (!listened) {
-        Logger::instance().warn("绑定 " + std::to_string(s.port) + " 失败（" + error + "），尝试其他端口。");
+        Logger::instance().warn("绑定 " + std::to_string(listenPort) + " 失败（" + error + "），尝试其他端口。");
         std::string retryOutcome;
-        int retryPort = resolveListenPort(s.port + 1, s.bindAddress, retryOutcome);
+        int retryPort = resolveListenPort(listenPort + 1, s.bindAddress, retryOutcome);
         if (retryPort > 0) {
-            std::string settingsError;
-            settings_->update(json{{"port", retryPort}}, settingsError);
-            Logger::instance().warn("自动切换到端口 " + std::to_string(retryPort) +
-                                    (settingsError.empty() ? "；新端口已写回设置。"
-                                                           : "；写回设置失败：" + settingsError));
-            s = settings_->get();
+            std::string reason = fallbackReason.empty() ? "原端口绑定失败" : fallbackReason + "，且绑定失败";
+            api_->setRuntimePort(retryPort, reason);
+            Logger::instance().warn("本次启动临时切换到端口 " + std::to_string(retryPort) +
+                                    "；设置中的端口 " + std::to_string(configuredPort) + " 保持不变。");
             error.clear();
-            listened = api_->listen(error);
+            listened = api_->listen(error, retryPort);
         }
     }
     if (!listened) {

@@ -21,8 +21,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   highest version of any kind. Selectable in Settings, persisted as
   `updateChannel`, and reported back as `channel` in `/api/v1/updates/check`.
 
+### Changed
+
+- `--port` and `--no-browser` are now runtime-only flags and no longer overwrite
+  saved settings. Port fallback never rewrites the configured port; `/health`
+  reports the actual port, the configured port and the fallback reason, and the
+  UI shows a prominent banner for the duration of the fallback.
+
 ### Fixed
 
+- Invalid port values are rejected with `400 SETTINGS_INVALID` instead of being
+  silently reset to the default port.
 - Settings page shows the running executable's version from `/api/v1/health`
   before any update check, and refreshes it after a self-update restarts the
   process. A single root `VERSION` file now feeds CMake, POSIX cross-builds,

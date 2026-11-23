@@ -995,6 +995,12 @@ const messages: Record<string, string> = {
   "删除模型及磁盘文件": "Delete model and files",
   "删除失败，模型记录已保留": "Delete failed, model record kept",
   "当前版本已更新": "Current version updated",
+  "端口已临时切换": "Port temporarily switched",
+  "设置端口 {0} 本次不可用，当前实际端口为 {1}。设置未被修改，下次启动仍会尝试 {0}。": "Configured port {0} is unavailable this run; the actual port is {1}. The setting was not changed, so the next start will try {0} again.",
+  "原因：{0}": "Reason: {0}",
+  "端口变更后需重启生效（1024-65535）。被占用时本次启动会临时换用空闲端口，不会改写此设置。": "Port changes take effect after a restart (1024-65535). If occupied, a free port is used for this run only; this setting is not overwritten.",
+  "当前实际端口": "Actual port",
+  "关闭后不再自动打开；命令行 --no-browser 只影响本次启动。": "Turn off to stop auto-opening; the --no-browser flag affects only that run.",
 }
 
 export default messages

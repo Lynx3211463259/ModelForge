@@ -243,6 +243,17 @@ json SettingsService::update(const json& patch, std::string& error) {
         error = "设置更新必须是 JSON 对象";
         return current;
     }
+    if (patch.contains("port")) {
+        if (!patch["port"].is_number_integer()) {
+            error = "端口必须是 1024-65535 之间的整数";
+            return current;
+        }
+        const int requestedPort = patch["port"].get<int>();
+        if (requestedPort < 1024 || requestedPort > 65535) {
+            error = "端口必须位于 1024-65535";
+            return current;
+        }
+    }
     for (auto it = patch.begin(); it != patch.end(); ++it) {
         if (it.key() == "dataDir" || it.key() == "webRoot") continue;
         current[it.key()] = it.value();

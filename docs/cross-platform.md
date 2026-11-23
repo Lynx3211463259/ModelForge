@@ -167,7 +167,7 @@ ModelForge-1.0.0-linux-x64.zip
 | `serve` 启动 + `/health` 200 | ✅ | 未跑 | 未跑 | 未跑 | 未跑 | — |
 | 运行时识别（llama status） | ✅ b12532/CPU | 未跑 | 未跑 | 未跑 | 未跑 | — |
 | 转换能力（conversionReady） | ✅ | 未跑 | 未跑 | 未跑 | 未跑 | — |
-| 端口占用自动回退 | ✅ 双实例实测 | 未跑（同源逻辑） | 未跑 | 未跑 | 未跑 | — |
+| 端口占用自动回退（临时，不写回设置） | ✅ 双实例实测 | 未跑（同源逻辑） | 未跑 | 未跑 | 未跑 | — |
 | HTTPS（下载/HF/更新） | ✅ WinHTTP | 未跑（curl 适配器，静态检查） | 未跑 | 未跑 | 未跑 | — |
 | 前端打包进产物 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 “未跑”≠失败：指在非 Windows 宿主上无法执行该平台二进制，仅完成编译/链接与静态检查。
@@ -218,6 +218,12 @@ unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
   `remove`（非递归）。Windows 文件被占用时返回 `FILE_DELETE_FAILED`（系统错误
   码 32），POSIX 权限不足返回 `PERMISSION_DENIED`（EACCES），错误文本固定为
   UTF-8，避免本地化消息破坏 JSON 响应。
+- 端口与浏览器启动设置持久化为 `port` / `autoOpenBrowser`。设置端口是权威值；
+  被占用时启动流程只在本进程选择空闲端口（最多向后探测 50 个），通过
+  `/api/v1/health` 的 `port`、`configuredPort`、`portFallback` 报告，前端在页面
+  顶部显示醒目横幅。下次启动仍按设置端口尝试。命令行 `--port` / `--no-browser`
+  同样只影响本次启动，不改写设置。Portable 包在 Windows 上探测与绑定均走
+  `winsock`，POSIX 走 `socket`/`bind`，逻辑同源。
 - 版本号统一由仓库根目录 `VERSION` 提供：CMake、POSIX 交叉编译脚本、Windows
   打包脚本与发布脚本都读取它；`GET /api/v1/health` 返回的是编译进二进制的版本，
   设置页的“当前版本”直接读取该值，更新重启后会自动刷新。

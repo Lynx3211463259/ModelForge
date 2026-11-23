@@ -47,6 +47,8 @@ const navGroups = computed(() => [
 const resolvedTheme = computed(() => resolveTheme(themeMode.value))
 const title = computed(() => t((route.meta.title as string) || 'ModelForge'))
 const subtitle = computed(() => t((route.meta.subtitle as string) || ''))
+const portFallback = computed(() => Boolean(app.health?.portFallback))
+
 const realtimeTone = computed(() => {
   if (app.realtimeStatus === 'online' || app.realtimeStatus === 'sse') return 'online'
   if (app.realtimeStatus === 'connecting') return 'warn'
@@ -158,6 +160,14 @@ watch(() => route.fullPath, () => { app.sidebarOpen = false })
       </header>
 
       <main class="page">
+        <div v-if="portFallback" class="notice warning port-fallback-banner" role="status">
+          <Icon name="warning" :size="15" class="notice-icon" />
+          <div>
+            <strong>{{ t('端口已临时切换') }}</strong>
+            <div>{{ t('设置端口 {0} 本次不可用，当前实际端口为 {1}。设置未被修改，下次启动仍会尝试 {0}。', [app.health?.configuredPort, app.health?.port]) }}</div>
+            <div v-if="app.health?.portFallbackReason">{{ t('原因：{0}', [app.health.portFallbackReason]) }}</div>
+          </div>
+        </div>
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" :key="locale + route.fullPath" />

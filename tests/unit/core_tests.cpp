@@ -3,6 +3,7 @@
 #include "modelforge/database.hpp"
 #include "modelforge/http_client.hpp"
 #include "modelforge/model_deleter.hpp"
+#include "modelforge/settings.hpp"
 #include "modelforge/update_service.hpp"
 #include "modelforge/util.hpp"
 
@@ -151,6 +152,29 @@ void testUpdateHelpers() {
     expect(job.toJson().value("status", "") == "ready", "update job projection");
 }
 
+void testSettingsPortValidation() {
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-port-" + mf::newId("t"));
+    std::error_code ec;
+    mf::fs::create_directories(base, ec);
+    mf::Database db;
+    std::string dbError;
+    expect(db.open(mf::pathToUtf8(base / "test.sqlite"), dbError), "port tests: open database");
+    mf::SettingsService settings(db, base, base / "data", base);
+
+    std::string error;
+    const mf::json valid = settings.update(mf::json{{"port", 18300}}, error);
+    expect(error.empty() && valid.value("port", 0) == 18300, "valid port is saved");
+
+    const std::vector<mf::json> badPorts{mf::json(80), mf::json(70000), mf::json(0), mf::json("abc")};
+    for (const auto& bad : badPorts) {
+        settings.update(mf::json{{"port", bad}}, error);
+        expect(!error.empty(), "invalid port " + bad.dump() + " is rejected");
+    }
+    expect(settings.get().port == 18300, "rejected port never changes the setting");
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
 void testVersionSource() {
     std::string fileVersion;
     try {
@@ -292,6 +316,7 @@ int main() {
     testRedaction();
     testUpdateHelpers();
     testVersionSource();
+    testSettingsPortValidation();
     testModelDeletion();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
