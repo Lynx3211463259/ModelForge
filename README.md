@@ -159,6 +159,10 @@ Settings → Software update (and `/api/v1/updates/*`) checks GitHub Releases fo
 newer build. When one is found the release name, notes and the ZIP matching the
 current OS/architecture are shown. After confirmation the package is downloaded,
 verified against the release's `SHA256SUMS.txt`, extracted, and a small
+Three update channels can be selected in Settings: `stable` (official releases
+only), `nightly` (prefers prereleases, falls back to stable) and `auto` (highest
+version of any kind). The choice is stored as `updateChannel`.
+
 `apply-update.bat` / `apply-update.sh` is started. That script waits for the
 running process to exit before replacing files and restarting the app, so the
 executable is never overwritten while in use. Set `MODELFORGE_GITHUB_API` to use

@@ -109,6 +109,21 @@ void testUpdateHelpers() {
     expect(mf::updates::compareVersions("v1.0.0", "1.0.1") < 0, "older version");
     expect(mf::updates::compareVersions("bad", "1.0.0") == 0, "malformed version never upgrades");
 
+    expect(mf::updates::normalizeChannel(" Nightly ") == "nightly", "channel normalization");
+    expect(mf::updates::normalizeChannel("whatever") == "stable", "unknown channel falls back to stable");
+
+    const mf::json releases = mf::json::array({
+        {{"tag_name", "v1.0.0"}, {"prerelease", false}, {"draft", false}},
+        {{"tag_name", "v1.2.0-nightly.3"}, {"prerelease", true}, {"draft", false}},
+        {{"tag_name", "v1.1.0"}, {"prerelease", false}, {"draft", false}},
+        {{"tag_name", "v9.9.9"}, {"prerelease", false}, {"draft", true}}});
+    expect(mf::updates::selectReleaseIndex(releases, "stable") == 2, "stable channel skips prereleases and drafts");
+    expect(mf::updates::selectReleaseIndex(releases, "nightly") == 1, "nightly channel prefers prereleases");
+    expect(mf::updates::selectReleaseIndex(releases, "auto") == 1, "auto channel takes the highest version");
+    expect(mf::updates::selectReleaseIndex(mf::json::array(), "auto") == -1, "empty release list");
+    const mf::json stableOnly = mf::json::array({{{"tag_name", "v2.0.0"}, {"prerelease", false}}});
+    expect(mf::updates::selectReleaseIndex(stableOnly, "nightly") == 0, "nightly falls back to stable");
+
     const std::string suffix = mf::updates::platformAssetSuffix();
     expect(!suffix.empty() && (suffix == "win64" || suffix.find('-') != std::string::npos),
            "platform asset suffix");

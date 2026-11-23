@@ -277,7 +277,7 @@ json schemas() {
                               {"defaultModelDir", str()}, {"defaultOutputDir", str()}, {"tempDir", str()},
                               {"dataDir", str()}, {"webRoot", str()}, {"bindAddress", str()}, {"port", integer()},
                               {"threads", integer()}, {"maxConcurrent", integer()}, {"autoOpenBrowser", boolean()},
-                              {"logTimestamps", boolean()}, {"theme", str()}, {"language", str()},
+                              {"logTimestamps", boolean()}, {"theme", str()}, {"language", str()}, {"updateChannel", str()},
                               {"llamaPplPath", str()}, {"pplDataset", str()},
                               {"folderWatchEnabled", boolean()}, {"watchFolders", strings()},
                               {"watchIntervalSec", integer()}, {"watchAutoConvert", boolean()},

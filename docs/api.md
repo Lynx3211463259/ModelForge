@@ -847,11 +847,18 @@ URL：`ws://127.0.0.1:8081/ws`（HTTP 端口 + 1）
 
 ### GET /updates/check
 
-查询 GitHub 最新 Release，返回 `currentVersion`、`latestVersion`、
-`updateAvailable`、`releaseName`、`releaseNotes`、`htmlUrl`、`publishedAt`、
+按设置项 `updateChannel` 选择发布通道：
+`stable`（默认，调用 `/releases/latest`，只取正式版）、`nightly`（读取
+`/releases`，优先 `prerelease` 版本，没有预发布时回退到正式版）、
+`auto`（读取 `/releases`，取版本号最高的构建，含预发布）。通道会写入
+`updateChannel` 设置并通过 `PUT /settings` 持久化。
+
+返回 `currentVersion`、`latestVersion`、`updateAvailable`、`releaseName`、
+`releaseNotes`、`htmlUrl`、`publishedAt`、`channel`、`prerelease`、
 `assetName`、`assetSize`、`code`、`message`、`suggestion`。
 `code`：`UPDATE_AVAILABLE`（发现新版本）、`UP_TO_DATE`（无更新）、
-`NETWORK_ERROR`（网络/限流/404）、`VERSION_PARSE_FAILED`（版本号无法解析）、
+`NO_RELEASE`（所选通道暂无可用版本）、`NETWORK_ERROR`（网络/限流/404）、
+`VERSION_PARSE_FAILED`（版本号或响应体无法解析）、
 `ASSET_NOT_FOUND`（当前平台无匹配资产）。这些状态以 HTTP 200 返回，由
 `code` 区分，前端据此给出对应提示。
 

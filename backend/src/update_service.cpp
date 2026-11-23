@@ -106,6 +106,41 @@ std::string checksumFor(const std::string& sha256sums, const std::string& fileNa
     return "";
 }
 
+std::string normalizeChannel(const std::string& channel) {
+    const std::string value = toLower(trim(channel));
+    if (value == "nightly" || value == "auto" || value == "stable") return value;
+    return "stable";
+}
+
+int selectReleaseIndex(const json& releases, const std::string& channel) {
+    if (!releases.is_array()) return -1;
+    const std::string mode = normalizeChannel(channel);
+    int bestAll = -1;
+    int bestPre = -1;
+    std::string allTag;
+    std::string preTag;
+    for (int i = 0; i < static_cast<int>(releases.size()); ++i) {
+        const json& release = releases[static_cast<size_t>(i)];
+        if (!release.is_object()) continue;
+        if (release.value("draft", false)) continue;
+        const std::string tag = release.value("tag_name", "");
+        std::vector<int> parts;
+        if (!parseVersion(tag, parts)) continue;
+        const bool pre = release.value("prerelease", false);
+        if (mode == "stable" && pre) continue;
+        if (bestAll < 0 || compareVersions(tag, allTag) > 0) {
+            bestAll = i;
+            allTag = tag;
+        }
+        if (pre && (bestPre < 0 || compareVersions(tag, preTag) > 0)) {
+            bestPre = i;
+            preTag = tag;
+        }
+    }
+    if (mode == "nightly") return bestPre >= 0 ? bestPre : bestAll;
+    return bestAll;
+}
+
 } // namespace updates
 
 namespace {
@@ -225,6 +260,7 @@ json UpdateInfo::toJson() const {
                 {"publishedAt", publishedAt},
                 {"updateAvailable", updateAvailable},
                 {"prerelease", prerelease},
+                {"channel", channel},
                 {"assetName", assetName},
                 {"assetSize", assetSize},
                 {"assetSizeLabel", humanBytes(assetSize)},
@@ -274,9 +310,11 @@ UpdateJob UpdateService::job(const std::string& id) const {
     return load(id);
 }
 
-UpdateInfo UpdateService::check() {
+UpdateInfo UpdateService::check(const std::string& channel) {
+    const std::string mode = updates::normalizeChannel(channel);
     UpdateInfo result;
     result.currentVersion = MODELEFORGE_VERSION;
+    result.channel = mode;
 
     HttpRequestOptions options;
     options.connectTimeoutMs = 8000;
@@ -284,8 +322,13 @@ UpdateInfo UpdateService::check() {
     options.headers = {{"User-Agent", std::string("ModelForge/") + MODELEFORGE_VERSION},
                        {"Accept", "application/vnd.github+json"},
                        {"X-GitHub-Api-Version", "2022-11-28"}};
-    const HttpResponse response = HttpClient::request(
-        apiBase() + std::string("/repos/") + kRepo + "/releases/latest", options);
+    // "stable" uses /releases/latest, which GitHub guarantees to be a
+    // non-prerelease. The other channels need the full list so prereleases and
+    // nightly builds can be taken into account.
+    const bool stableOnly = mode == "stable";
+    const std::string url = apiBase() + std::string("/repos/") + kRepo +
+                            (stableOnly ? "/releases/latest" : "/releases?per_page=40");
+    const HttpResponse response = HttpClient::request(url, options);
     if (!response.ok) {
         result.code = "NETWORK_ERROR";
         result.message = "无法连接 GitHub：" + response.error;
@@ -302,7 +345,22 @@ UpdateInfo UpdateService::check() {
 
     json release;
     try {
-        release = json::parse(response.body);
+        const json parsed = json::parse(response.body);
+        if (stableOnly) {
+            if (!parsed.is_object()) throw std::runtime_error("expected release object");
+            release = parsed;
+        } else {
+            if (!parsed.is_array()) throw std::runtime_error("expected release array");
+            const int index = updates::selectReleaseIndex(parsed, mode);
+            if (index < 0) {
+                result.code = "NO_RELEASE";
+                result.message = "所选更新通道暂无可用的版本。";
+                result.suggestion = "可切换到“稳定版”通道，或前往 https://github.com/" + std::string(kRepo) +
+                                    "/releases 手动查看。";
+                return result;
+            }
+            release = parsed[static_cast<size_t>(index)];
+        }
     } catch (const std::exception&) {
         result.code = "VERSION_PARSE_FAILED";
         result.message = "GitHub 返回的内容不是有效的版本信息。";

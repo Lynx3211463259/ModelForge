@@ -985,6 +985,9 @@ const messages: Record<string, string> = {
   "安装包": "Package",
   "更新说明": "Release notes",
   "确认下载并安装": "Confirm download and install",
+  "稳定版只接收正式发布；每日构建优先预发布；自动取版本号最高的构建。": "Stable only accepts official releases; nightly prefers prereleases; auto takes the build with the highest version.",
+  "更新通道已切换": "Update channel switched",
+  "所选更新通道暂无可用的版本。": "No release is available on the selected channel.",
 }
 
 export default messages

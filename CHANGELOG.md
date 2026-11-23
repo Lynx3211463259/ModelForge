@@ -4,6 +4,15 @@ All notable changes to ModelForge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Update channels for the in-app updater: `stable` reads `/releases/latest`,
+  `nightly` prefers prereleases (falling back to stable), and `auto` picks the
+  highest version of any kind. Selectable in Settings, persisted as
+  `updateChannel`, and reported back as `channel` in `/api/v1/updates/check`.
+
 ## [1.0.0] - 2026-11-21
 
 First public release. Consolidates the functionality developed through the

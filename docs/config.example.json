@@ -24,6 +24,7 @@
   "logTimestamps": true,
   "theme": "dark",
   "language": "zh-CN",
+  "updateChannel": "stable",
   "folderWatchEnabled": false,
   "watchFolders": [],
   "watchIntervalSec": 30,

@@ -96,6 +96,21 @@ async function importSettings(event: Event) {
   }
 }
 
+async function onUpdateChannelChange(value: string) {
+  if (!form.value) return
+  form.value.updateChannel = value
+  updateInfo.value = null
+  updateJob.value = null
+  try {
+    const result = await api.put<{ settings: Settings; restartRequired: boolean }>('/api/v1/settings', { updateChannel: value })
+    form.value = result.settings
+    app.settings = result.settings
+    app.toast('success', t('更新通道已切换'))
+  } catch (error) {
+    app.fromError(error, t('保存设置失败'))
+  }
+}
+
 async function checkUpdate() {
   checkingUpdate.value = true
   updateInfo.value = null
@@ -301,6 +316,15 @@ onMounted(async () => { await app.init(); await load() })
         <span class="badge">{{ t('当前版本') }} {{ updateInfo?.currentVersion || '—' }}</span>
       </div>
       <div class="card-body">
+        <div class="field" style="max-width: 420px; margin-bottom: 12px">
+          <label class="field-label">{{ t('更新通道') }}</label>
+          <select class="select" :value="form?.updateChannel || 'stable'" @change="onUpdateChannelChange(($event.target as HTMLSelectElement).value)">
+            <option value="stable">{{ t('稳定版（优先正式 release）') }}</option>
+            <option value="nightly">{{ t('每日构建（含预发布）') }}</option>
+            <option value="auto">{{ t('自动（最新可安装构建）') }}</option>
+          </select>
+          <div class="field-hint">{{ t('稳定版只接收正式发布；每日构建优先预发布；自动取版本号最高的构建。') }}</div>
+        </div>
         <div v-if="!updateInfo" class="setting-group-copy">{{ t('点击“检查更新”从 GitHub 获取最新版本信息。') }}</div>
         <div v-else-if="updateInfo.code === 'UP_TO_DATE'" class="notice">
           <Icon name="check" :size="14" class="notice-icon" />

@@ -213,6 +213,10 @@ unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
 
 ## 9. 软件更新（跨平台）
 
+- 更新通道 `updateChannel`（`stable` / `nightly` / `auto`）为全平台共用设置：
+  `stable` 只查正式 Release，`nightly` 优先预发布并在无预发布时回退，
+  `auto` 取版本号最高者。选择逻辑抽为纯函数 `updates::selectReleaseIndex`，
+  各平台行为一致。
 - 版本比较与资产匹配使用统一纯函数：`v1.2.0` → `1.2.0`，按数字段比较；
   资产名为 `ModelForge-<版本>-<平台>-<架构>.zip`。Windows 固定 `win64`，
   POSIX 按目标为 `linux/macos/android/openeuler-<arch>`。

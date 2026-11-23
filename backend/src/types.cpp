@@ -17,6 +17,7 @@ json AppSettings::toJson() const {
         {"dataDir", dataDir}, {"webRoot", webRoot}, {"bindAddress", bindAddress}, {"port", port},
         {"threads", threads}, {"maxConcurrent", maxConcurrent}, {"autoOpenBrowser", autoOpenBrowser},
         {"logTimestamps", logTimestamps}, {"theme", theme}, {"language", language},
+        {"updateChannel", updateChannel},
         {"folderWatchEnabled", folderWatchEnabled}, {"watchFolders", watchFolders},
         {"watchIntervalSec", watchIntervalSec}, {"watchAutoConvert", watchAutoConvert},
         {"watchPresetId", watchPresetId}
@@ -42,6 +43,7 @@ AppSettings AppSettings::fromJson(const json& value, const AppSettings& defaults
     str("llamaRepo", s.llamaRepo);
     str("defaultModelDir", s.defaultModelDir); str("defaultOutputDir", s.defaultOutputDir); str("tempDir", s.tempDir);
     str("webRoot", s.webRoot); str("bindAddress", s.bindAddress); str("theme", s.theme); str("language", s.language);
+    str("updateChannel", s.updateChannel);
     num("port", s.port); num("threads", s.threads); num("maxConcurrent", s.maxConcurrent);
     boolean("autoOpenBrowser", s.autoOpenBrowser); boolean("logTimestamps", s.logTimestamps);
     boolean("folderWatchEnabled", s.folderWatchEnabled);
@@ -57,6 +59,8 @@ AppSettings AppSettings::fromJson(const json& value, const AppSettings& defaults
     else s.llamaBackend = toLower(s.llamaBackend);
     if (s.theme != "light" && s.theme != "system") s.theme = "dark";
     if (s.language != "en-US") s.language = "zh-CN";
+    const std::string updateChannel = toLower(s.updateChannel);
+    s.updateChannel = (updateChannel == "nightly" || updateChannel == "auto") ? updateChannel : "stable";
     const std::string channel = toLower(s.llamaChannel);
     s.llamaChannel = (channel == "stable" || channel == "nightly") ? channel : "auto";
     if (s.llamaRepo.empty()) s.llamaRepo = "ggml-org/llama.cpp";

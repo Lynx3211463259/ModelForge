@@ -66,6 +66,9 @@ struct AppSettings {
     bool logTimestamps = true;
     std::string theme = "dark";
     std::string language = "zh-CN";
+    // 应用自身更新通道：stable 仅正式版，nightly 优先预发布/每日构建，
+    // auto 直接采用版本号最高的构建（含预发布）。
+    std::string updateChannel = "stable";
     bool folderWatchEnabled = false;
     std::vector<std::string> watchFolders;
     int watchIntervalSec = 30;

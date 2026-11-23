@@ -23,6 +23,14 @@ int compareVersions(const std::string& left, const std::string& right);
 std::string platformAssetSuffix();
 // Reads "<sha256>  <filename>" lines from a SHA256SUMS document.
 std::string checksumFor(const std::string& sha256sums, const std::string& fileName);
+// Normalizes the update channel: "stable" | "nightly" | "auto".
+// Unknown values fall back to "stable".
+std::string normalizeChannel(const std::string& channel);
+// Picks the index of the best release from a GitHub /releases array.
+// "stable" ignores prereleases, "nightly" prefers prereleases and falls back
+// to stable when none exists, "auto" takes the highest version of any kind.
+// Returns -1 when no usable release is present. Pure so tests can cover it.
+int selectReleaseIndex(const json& releases, const std::string& channel);
 
 } // namespace updates
 
@@ -35,6 +43,8 @@ struct UpdateInfo {
     std::string publishedAt;
     bool updateAvailable = false;
     bool prerelease = false;
+    // Channel used for this check: stable | nightly | auto.
+    std::string channel;
     std::string assetName;
     std::string assetUrl;
     uint64_t assetSize = 0;
@@ -66,7 +76,8 @@ class UpdateService {
 public:
     UpdateService(const fs::path& installRoot, const fs::path& tempDir);
 
-    UpdateInfo check();
+    // channel: stable | nightly | auto (see updates::normalizeChannel).
+    UpdateInfo check(const std::string& channel);
     UpdateInfo lastCheck() const;
     std::string startDownload(std::string& code, std::string& message);
     UpdateJob job(const std::string& id) const;

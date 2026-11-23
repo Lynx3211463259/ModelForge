@@ -1066,7 +1066,7 @@ int ApiServer::port() const {
 
 void ApiServer::registerUpdateRoutes() {
     routes_->Get("/api/v1/updates/check", [this](const httplib::Request&, httplib::Response& res) {
-        ok(res, update_.check().toJson());
+        ok(res, update_.check(settings_.get().updateChannel).toJson());
     });
 
     routes_->Post("/api/v1/updates/download", [this](const httplib::Request&, httplib::Response& res) {

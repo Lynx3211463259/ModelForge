@@ -165,6 +165,7 @@ export interface Settings {
   logTimestamps: boolean
   theme: string
   language: string
+  updateChannel: string
   folderWatchEnabled: boolean
   watchFolders: string[]
   watchIntervalSec: number
@@ -182,6 +183,7 @@ export interface UpdateInfo {
   publishedAt: string
   updateAvailable: boolean
   prerelease: boolean
+  channel: string
   assetName: string
   assetSize: number
   assetSizeLabel: string
