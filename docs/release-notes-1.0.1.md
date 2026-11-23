@@ -58,10 +58,36 @@
 - 行为细节：预发布标签的数字部分必须高于当前版本（如 `v1.0.1-nightly.1`），
   否则版本比较结果相等，仍显示 `UP_TO_DATE`。
 
-## 下载
+## Downloads
 
-- [Windows x64](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-win64.zip)
-- [Linux x64 / arm64](https://github.com/Lynx3211463259/ModelForge/releases/tag/v1.0.1)
-- [macOS x64 / arm64](https://github.com/Lynx3211463259/ModelForge/releases/tag/v1.0.1)
-- [Android / openEuler](https://github.com/Lynx3211463259/ModelForge/releases/tag/v1.0.1)
-- 校验文件：[SHA256SUMS.txt](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/SHA256SUMS.txt)
+<!-- DOWNLOADS:START -->
+Choose the archive for your operating system and architecture. All builds are ZIP files.
+
+### Windows
+
+- [Windows x64 — portable](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-win64.zip)
+
+### macOS
+
+- [macOS Apple Silicon (arm64)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-macos-arm64.zip)
+- [macOS Intel (x64)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-macos-x64.zip)
+
+### Linux
+
+- [Linux x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-linux-x64.zip)
+- [Linux arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-linux-arm64.zip)
+
+### Android
+
+- [Android arm64 (Termux)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-android-arm64.zip)
+- [Android x64 (Termux)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-android-x64.zip)
+
+### openEuler
+
+- [openEuler x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-openeuler-x64.zip)
+- [openEuler arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-openeuler-arm64.zip)
+
+iOS: no distributable build (signing required; no long-lived background HTTP service). Source stays syntax-checked only.
+
+Verify your download with `SHA256SUMS.txt` in the Assets section below.
+<!-- DOWNLOADS:END -->
