@@ -7,6 +7,7 @@ import type { Settings, UpdateInfo, UpdateJob } from '../types'
 import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
 import AppModal from '../components/AppModal.vue'
+import DirectoryPicker from '../components/DirectoryPicker.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 
 const app = useAppStore()
@@ -26,6 +27,22 @@ const applyingUpdate = ref(false)
 const updateModalOpen = ref(false)
 let updatePoll: number | undefined
 let versionPoll: number | undefined
+
+const dirPickerOpen = ref(false)
+const dirPickerInitial = ref('')
+const dirPickerTarget = ref<'' | 'llamaRoot' | 'defaultModelDir' | 'defaultOutputDir' | 'tempDir'>('')
+
+function openDirPicker(target: typeof dirPickerTarget.value) {
+  if (!form.value || !target) return
+  dirPickerTarget.value = target
+  dirPickerInitial.value = String((form.value as any)[target] || '')
+  dirPickerOpen.value = true
+}
+
+function onDirSelected(path: string) {
+  if (form.value && dirPickerTarget.value) (form.value as any)[dirPickerTarget.value] = path
+  app.toast('success', t('已选择目录'), path)
+}
 
 // The running executable is authoritative: /api/v1/health returns the version
 // compiled into it. Fall back to the last GitHub check only when health is
@@ -261,7 +278,14 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
                 <router-link to="/runtime" style="color: var(--accent); text-decoration: underline">{{ t('打开“运行引擎”') }}</router-link> {{ t('可查看官方版本、检查更新并按当前平台下载官方资源。') }}
               </div>
             </div>
-            <div class="field"><label class="field-label">{{ t('llama.cpp 目录') }}</label><input v-model="form.llamaRoot" class="input mono" /><div class="field-hint">{{ t('官方 zip 保存在 downloads/，原样解压到 releases/<资产名>/。') }}</div></div>
+            <div class="field">
+              <label class="field-label">{{ t('llama.cpp 目录') }}</label>
+              <div class="input-with-button">
+                <input v-model="form.llamaRoot" class="input mono" />
+                <button class="btn btn-sm" @click="openDirPicker('llamaRoot')"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+              </div>
+              <div class="field-hint">{{ t('官方 zip 保存在 downloads/，原样解压到 releases/<资产名>/。') }}</div>
+            </div>
             <div class="field"><label class="field-label">llama-quantize</label><input v-model="form.quantizePath" class="input mono" /></div>
             <div class="field"><label class="field-label">llama-cli</label><input v-model="form.llamaCliPath" class="input mono" /></div>
             <div class="field"><label class="field-label">llama-server</label><input v-model="form.llamaServerPath" class="input mono" /></div>
@@ -281,9 +305,28 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
         <div class="card-body">
           <div class="setting-group">
             <div class="setting-group-title">{{ t('工作目录') }}</div>
-            <div class="field"><label class="field-label">{{ t('默认模型目录') }}</label><input v-model="form.defaultModelDir" class="input mono" /></div>
-            <div class="field"><label class="field-label">{{ t('默认输出目录') }}</label><input v-model="form.defaultOutputDir" class="input mono" /><div class="field-hint">{{ t('转换前仍会检查该目录的可用磁盘空间与写权限。') }}</div></div>
-            <div class="field"><label class="field-label">{{ t('临时目录') }}</label><input v-model="form.tempDir" class="input mono" /></div>
+            <div class="field">
+              <label class="field-label">{{ t('默认模型目录') }}</label>
+              <div class="input-with-button">
+                <input v-model="form.defaultModelDir" class="input mono" />
+                <button class="btn btn-sm" @click="openDirPicker('defaultModelDir')"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label">{{ t('默认输出目录') }}</label>
+              <div class="input-with-button">
+                <input v-model="form.defaultOutputDir" class="input mono" />
+                <button class="btn btn-sm" @click="openDirPicker('defaultOutputDir')"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+              </div>
+              <div class="field-hint">{{ t('转换前仍会检查该目录的可用磁盘空间与写权限。') }}</div>
+            </div>
+            <div class="field">
+              <label class="field-label">{{ t('临时目录') }}</label>
+              <div class="input-with-button">
+                <input v-model="form.tempDir" class="input mono" />
+                <button class="btn btn-sm" @click="openDirPicker('tempDir')"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+              </div>
+            </div>
             <div class="kv"><span>{{ t('数据库与日志目录') }}</span><span>{{ form.dataDir }}</span></div>
           </div>
 
@@ -393,6 +436,8 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
         </div>
       </div>
     </div>
+
+    <DirectoryPicker v-model="dirPickerOpen" :initial-path="dirPickerInitial" @select="onDirSelected" />
 
     <AppModal v-model="updateModalOpen" :title="t('发现新版本')" :subtitle="t('请确认是否下载并安装该版本')" :wide="true">
       <div v-if="updateInfo">

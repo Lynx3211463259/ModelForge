@@ -6,8 +6,17 @@ import type { Settings } from '../types'
 import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
 import EmptyState from '../components/EmptyState.vue'
+import DirectoryPicker from '../components/DirectoryPicker.vue'
 
 const app = useAppStore()
+const dirPickerOpen = ref(false)
+
+function addWatchedFolder(path: string) {
+  const existing = foldersText.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+  if (!existing.includes(path)) existing.push(path)
+  foldersText.value = existing.join('\n')
+}
+
 const status = ref<any>(null)
 const events = ref<any[]>([])
 const profiles = ref<any[]>([])
@@ -169,6 +178,7 @@ onUnmounted(() => {
           <div class="field">
             <label class="field-label">{{ t('监控目录（每行一个绝对路径）') }}</label>
             <textarea v-model="foldersText" class="input mono" rows="4" :placeholder="t('例如 D:\\\\models\\\\incoming')"></textarea>
+            <button class="btn btn-sm" style="margin-top: 8px" @click="dirPickerOpen = true"><Icon name="folder" :size="12" /> {{ t('浏览并添加目录') }}</button>
             <div class="field-hint">{{ t('只扫描目录的第一层子目录；已处理过的目录按“大小 + 修改时间”签名去重。') }}</div>
           </div>
           <div class="field-row">
@@ -265,5 +275,7 @@ onUnmounted(() => {
         </table>
       </div>
     </div>
+    <DirectoryPicker v-model="dirPickerOpen" @select="addWatchedFolder" />
+
   </div>
 </template>

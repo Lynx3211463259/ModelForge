@@ -172,7 +172,10 @@ a mirror or a local test server.
 
 1. Download and extract `ModelForge-1.0.0-win64.zip`.
 2. Run `start.bat`, or `modelforge.exe serve` from the extracted folder.
-3. The server uses the port saved in Settings (1024-65535) and opens the browser
+3. Folder fields in Settings and the model import dialog have a **Browse**
+   button that opens an in-app folder tree (expand, go up, paste a path), so you
+   do not have to type absolute paths by hand.
+4. The server uses the port saved in Settings (1024-65535) and opens the browser
    automatically unless you turn that off in Settings. If the port is busy, this
    run uses a free port instead and a banner shows the actual port; the saved
    port is unchanged and will be tried again next time. `--port` and

@@ -21,6 +21,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   highest version of any kind. Selectable in Settings, persisted as
   `updateChannel`, and reported back as `channel` in `/api/v1/updates/check`.
 
+### Added
+
+- A graphical directory picker for settings and model import: lazy-loaded folder
+  tree with expand/collapse, location shortcuts, up navigation, direct path
+  entry, selected-path display and confirm/cancel. Backed by read-only
+  `/api/v1/fs/roots` and `/api/v1/fs/list` endpoints that report not-found,
+  not-a-directory, permission and truncation states.
+
 ### Changed
 
 - `--port` and `--no-browser` are now runtime-only flags and no longer overwrite

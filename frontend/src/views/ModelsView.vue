@@ -7,6 +7,7 @@ import type { Model, ModelDeleteResult } from '../types'
 import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
 import AppModal from '../components/AppModal.vue'
+import DirectoryPicker from '../components/DirectoryPicker.vue'
 import EmptyState from '../components/EmptyState.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
@@ -22,6 +23,17 @@ const batchMode = ref(false)
 const batchPaths = ref('')
 const importing = ref(false)
 const importSummary = ref<{ models: Model[]; errors: any[] } | null>(null)
+const dirPickerOpen = ref(false)
+
+function onImportDirectory(path: string) {
+  if (batchMode.value) {
+    const existing = batchPaths.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    if (!existing.includes(path)) existing.push(path)
+    batchPaths.value = existing.join('\n')
+  } else {
+    importPath.value = path
+  }
+}
 const versionOpen = ref(false)
 const versionLoading = ref(false)
 const versionTree = ref<any>(null)
@@ -232,6 +244,8 @@ onMounted(async () => {
       </article>
     </div>
 
+    <DirectoryPicker v-model="dirPickerOpen" :initial-path="batchMode ? '' : importPath" @select="onImportDirectory" />
+
     <AppModal v-model="importOpen" :title="t('导入本地模型')" subtitle="ModelForge 读取路径，不将权重上传到浏览器或外部服务。" :wide="batchMode">
       <div class="tabs">
         <button class="tab" :class="{ active: !batchMode }" @click="batchMode = false">{{ t('单个目录') }}</button>
@@ -241,7 +255,10 @@ onMounted(async () => {
       <div v-if="!batchMode">
         <div class="field">
           <label class="field-label">{{ t('模型目录的绝对路径') }}</label>
-          <input v-model="importPath" class="input mono" :placeholder="t('例如 C:\\models\\Qwen3-0.6B')" @keyup.enter="importModels" />
+          <div class="input-with-button">
+            <input v-model="importPath" class="input mono" :placeholder="t('例如 C:\\models\\Qwen3-0.6B')" @keyup.enter="importModels" />
+            <button class="btn btn-sm" @click="dirPickerOpen = true"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+          </div>
           <div class="field-hint">{{ t('目录应包含 config.json、一个或多个 .safetensors 文件及 Tokenizer。支持分片索引与多分片导入。') }}</div>
         </div>
       </div>
@@ -249,6 +266,7 @@ onMounted(async () => {
         <div class="field">
           <label class="field-label">{{ t('每行一个模型目录') }}</label>
           <textarea v-model="batchPaths" class="textarea" style="min-height: 150px" placeholder="C:\models\ModelA&#10;D:\models\ModelB"></textarea>
+          <button class="btn btn-sm" style="margin-top: 8px" @click="dirPickerOpen = true"><Icon name="folder" :size="12" /> {{ t('浏览并添加目录') }}</button>
         </div>
       </div>
 

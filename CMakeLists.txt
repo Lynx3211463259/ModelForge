@@ -52,6 +52,7 @@ add_executable(modelforge
   backend/src/watch_service.cpp
   backend/src/update_service.cpp
   backend/src/openapi.cpp
+  backend/src/fs_browser.cpp
   backend/src/api_server.cpp
   backend/src/app.cpp
 )
@@ -95,7 +96,7 @@ install(TARGETS modelforge RUNTIME DESTINATION bin)
 install(DIRECTORY frontend/dist/ DESTINATION share/modelforge/web OPTIONAL)
 
 enable_testing()
-add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp backend/src/database.cpp backend/src/model_deleter.cpp backend/src/settings.cpp backend/src/types.cpp backend/src/llama_runtime.cpp)
+add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp backend/src/database.cpp backend/src/model_deleter.cpp backend/src/settings.cpp backend/src/types.cpp backend/src/llama_runtime.cpp backend/src/fs_browser.cpp)
 target_include_directories(modelforge_tests PRIVATE backend/include backend/third_party)
 if(WIN32)
   target_compile_definitions(modelforge_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0601)

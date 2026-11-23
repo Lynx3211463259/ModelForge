@@ -1,6 +1,7 @@
 #include "modelforge/api_server.hpp"
 
 #include "modelforge/gguf_reader.hpp"
+#include "modelforge/fs_browser.hpp"
 #include "modelforge/hf_client.hpp"
 #include "modelforge/logger.hpp"
 #include "modelforge/model_scanner.hpp"
@@ -169,6 +170,22 @@ void ApiServer::registerSystemRoutes() {
                      {"portFallback", portFallback},
                      {"portFallbackReason", portFallback ? portFallbackReason_ : ""},
                      {"websocketPort", ws_.port()}, {"websocketRunning", ws_.running()}});
+    });
+    routes_->Get("/api/v1/fs/roots", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, json{{"roots", fs_browse::roots()}});
+    });
+    routes_->Get("/api/v1/fs/list", [this](const httplib::Request& req, httplib::Response& res) {
+        const fs_browse::Listing listing = fs_browse::list(queryValue(req, "path"));
+        if (!listing.ok) {
+            int status = 500;
+            if (listing.code == "INVALID_PATH" || listing.code == "NOT_A_DIRECTORY") status = 400;
+            else if (listing.code == "DIRECTORY_NOT_FOUND") status = 404;
+            else if (listing.code == "DIRECTORY_PERMISSION_DENIED") status = 403;
+            fail(res, listing.code, listing.message, status, listing.suggestion,
+                 json{{"path", listing.path}, {"parent", listing.parent}});
+            return;
+        }
+        ok(res, listing.toJson());
     });
     routes_->Get("/api/v1/system/summary", [this](const httplib::Request&, httplib::Response& res) {
         ok(res, system_.summary());

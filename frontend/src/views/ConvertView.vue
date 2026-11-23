@@ -9,9 +9,15 @@ import Icon from '../components/Icon.vue'
 import LogConsole from '../components/LogConsole.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import EmptyState from '../components/EmptyState.vue'
+import DirectoryPicker from '../components/DirectoryPicker.vue'
 
 const route = useRoute()
 const app = useAppStore()
+const dirPickerOpen = ref(false)
+
+function onOutputDirectory(path: string) {
+  form.value.outputDir = path
+}
 
 const models = ref<Model[]>([])
 const model = ref<Model | null>(null)
@@ -441,7 +447,10 @@ onUnmounted(() => {
           </div>
           <div class="field">
             <label class="field-label">{{ t('输出目录') }}</label>
-            <input v-model="form.outputDir" class="input mono" placeholder="C:\output" />
+            <div class="input-with-button">
+              <input v-model="form.outputDir" class="input mono" placeholder="C:\output" />
+              <button class="btn btn-sm" @click="dirPickerOpen = true"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+            </div>
             <div class="field-hint">{{ t('目录不存在时后端会自动创建；路径必须可写。') }}</div>
           </div>
 
@@ -594,5 +603,7 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <DirectoryPicker v-model="dirPickerOpen" :initial-path="form.outputDir" @select="onOutputDirectory" />
   </div>
 </template>

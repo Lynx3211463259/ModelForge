@@ -1,6 +1,7 @@
 #include "modelforge/crypto.hpp"
 #include "modelforge/hf_client.hpp"
 #include "modelforge/database.hpp"
+#include "modelforge/fs_browser.hpp"
 #include "modelforge/http_client.hpp"
 #include "modelforge/model_deleter.hpp"
 #include "modelforge/settings.hpp"
@@ -150,6 +151,46 @@ void testUpdateHelpers() {
     job.id = "upd_1";
     job.status = "ready";
     expect(job.toJson().value("status", "") == "ready", "update job projection");
+}
+
+void testFsBrowser() {
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-fs-" + mf::newId("t"));
+    std::error_code ec;
+    mf::fs::create_directories(base / "beta", ec);
+    mf::fs::create_directories(base / "Alpha", ec);
+    mf::fs::create_directories(base / ".hidden", ec);
+    mf::writeTextFile(base / "note.txt", "x");
+
+    const mf::fs_browse::Listing listing = mf::fs_browse::list(mf::pathToUtf8(base));
+    expect(listing.ok, "directory listing succeeds");
+    expect(listing.entries.size() == 3, "listing returns directories only");
+    expect(listing.entries[0].value("name", "") == ".hidden" || listing.entries[0].value("name", "") == "Alpha",
+           "entries are ordered");
+    bool hasFile = false;
+    bool hiddenFlag = false;
+    for (const auto& entry : listing.entries) {
+        if (entry.value("name", "") == "note.txt") hasFile = true;
+        if (entry.value("name", "") == ".hidden") hiddenFlag = entry.value("hidden", false);
+    }
+    expect(!hasFile, "files are excluded from the directory tree");
+    expect(hiddenFlag, "hidden directories are flagged");
+    expect(!listing.parent.empty(), "parent directory is reported");
+
+    const mf::fs_browse::Listing notDir = mf::fs_browse::list(mf::pathToUtf8(base / "note.txt"));
+    expect(!notDir.ok && notDir.code == "NOT_A_DIRECTORY", "file path is rejected");
+
+    const mf::fs_browse::Listing missing = mf::fs_browse::list(mf::pathToUtf8(base / "missing"));
+    expect(!missing.ok && missing.code == "DIRECTORY_NOT_FOUND", "missing directory is reported");
+
+    const mf::fs_browse::Listing home = mf::fs_browse::list("");
+    expect(home.ok && !home.path.empty(), "empty path starts at home or the filesystem root");
+
+    const mf::json roots = mf::fs_browse::roots();
+    expect(roots.is_array() && !roots.empty(), "filesystem roots are available");
+    expect(mf::fs_browse::classifyError(std::make_error_code(std::errc::permission_denied)) ==
+               "DIRECTORY_PERMISSION_DENIED", "permission error is classified");
+
+    mf::fs::remove_all(base, ec);
 }
 
 void testSettingsPortValidation() {
@@ -317,6 +358,7 @@ int main() {
     testUpdateHelpers();
     testVersionSource();
     testSettingsPortValidation();
+    testFsBrowser();
     testModelDeletion();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";

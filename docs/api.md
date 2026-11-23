@@ -51,6 +51,32 @@ Base URL：`http://127.0.0.1:8080/api/v1`
 }
 ```
 
+### GET /fs/roots
+
+返回可快速跳转的位置：Windows 为各盘符与用户目录，POSIX 为 `/` 与用户目录。
+
+### GET /fs/list?path=<绝对路径>
+
+只读目录浏览，供 Web UI 的目录选择器使用，不读取文件内容。`path` 为空时从
+用户目录（或文件系统根）开始。
+
+```json
+{
+  "path": "C:////Users////seewo////Documents",
+  "parent": "C:////Users////seewo",
+  "entries": [
+    { "name": "ModelForge", "path": "C:////Users////seewo////Documents////ModelForge", "hidden": false }
+  ],
+  "truncated": false
+}
+```
+
+`entries` 只包含子目录（按名称不区分大小写排序，最多 2000 项，超出时
+`truncated=true`）。错误码：`INVALID_PATH`（400）、`DIRECTORY_NOT_FOUND`
+（404）、`NOT_A_DIRECTORY`（400）、`DIRECTORY_PERMISSION_DENIED`（403）、
+`DIRECTORY_LIST_FAILED`（500）。错误响应在 `details` 中带回 `path` 与
+`parent`，前端可据此返回上一级。
+
 ### GET /system/summary
 
 模型总数、总体积、成功转换次数、队列、资源、最近任务、工程能力。
