@@ -1022,6 +1022,8 @@ const messages: Record<string, string> = {
   "折叠": "Collapse",
   "已选择目录": "Folder selected",
   "浏览并添加目录": "Browse and add folder",
+  "切换后立即生效并自动保存。": "Applies immediately and is saved automatically.",
+  "语言设置保存失败": "Failed to save the language setting",
 }
 
 export default messages

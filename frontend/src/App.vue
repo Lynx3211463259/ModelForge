@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { applyLocale, locale, t } from './i18n'
+import { applyLocale, t } from './i18n'
 import { applyTheme, resolveTheme, themeMode, type ThemeMode } from './theme'
 import { api } from './api/client'
 import { computed, onMounted, watch } from 'vue'
@@ -77,7 +77,7 @@ function toggleTheme() {
   })
 }
 
-// Keep the document title in sync with the active locale as well as navigation.
+// Keep the document title in sync with translations and navigation.
 watch([title, () => route.fullPath], () => {
   document.title = `${title.value} · ModelForge`
 })
@@ -170,7 +170,7 @@ watch(() => route.fullPath, () => { app.sidebarOpen = false })
         </div>
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
-            <component :is="Component" :key="locale + route.fullPath" />
+            <component :is="Component" :key="route.fullPath" />
           </transition>
         </router-view>
       </main>

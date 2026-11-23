@@ -85,9 +85,16 @@ function onThemeChange(value: string) {
   if (app.settings) app.settings.theme = value
 }
 
-function onLanguageChange(value: string) {
-  applyLocale(value)
-  if (app.settings) app.settings.language = value
+async function onLanguageChange(value: string) {
+  const next = value === 'en-US' ? 'en-US' : 'zh-CN'
+  if (form.value) form.value.language = next
+  applyLocale(next)
+  if (app.settings) app.settings.language = next
+  try {
+    await api.put('/api/v1/settings', { language: next })
+  } catch (error) {
+    app.fromError(error, t('语言设置保存失败'))
+  }
 }
 
 async function testToolchain() {
@@ -358,11 +365,11 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
               </div>
               <div class="field">
                 <label class="field-label">{{ t('语言') }}</label>
-                <select v-model="form.language" class="select" @change="onLanguageChange(form.language)">
+                <select v-model="form.language" class="select" @change="onLanguageChange(($event.target as HTMLSelectElement).value)">
                   <option value="zh-CN">简体中文</option>
                   <option value="en-US">English</option>
                 </select>
-                <div class="field-hint">{{ t('切换后立即生效，保存设置后持久化到服务端。') }}</div>
+                <div class="field-hint">{{ t('切换后立即生效并自动保存。') }}</div>
               </div>
             </div>
           </div>

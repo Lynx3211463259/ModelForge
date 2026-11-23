@@ -36,7 +36,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reports the actual port, the configured port and the fallback reason, and the
   UI shows a prominent banner for the duration of the fallback.
 
-### Fixed
+### Fixed
+
+- Switching the UI language no longer remounts the Settings page with stale
+  server data (the router view is no longer keyed by locale). The selected
+  language is now written explicitly to the form and persisted immediately;
+  reload restores it from the server in both directions.
 
 - Invalid port values are rejected with `400 SETTINGS_INVALID` instead of being
   silently reset to the default port.
