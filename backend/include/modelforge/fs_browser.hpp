@@ -28,7 +28,24 @@ json roots();
 
 // Lists sub-directories of requestedPath. An empty path starts at the user's
 // home directory (or the filesystem root when no home is known).
-Listing list(const std::string& requestedPath);
+// includeFiles also reports regular files; each entry then carries a
+// "directory" boolean.
+Listing list(const std::string& requestedPath, bool includeFiles = false);
+
+struct FileInfo {
+    bool ok = false;
+    std::string code;
+    std::string message;
+    std::string suggestion;
+    std::string path;
+    std::string name;
+    uint64_t size = 0;
+
+    json toJson() const;
+};
+
+// Validates a path selected in file mode before the UI emits it downstream.
+FileInfo describeFile(const std::string& requestedPath);
 
 // Stable reason for a filesystem error, for API error mapping.
 std::string classifyError(const std::error_code& ec);

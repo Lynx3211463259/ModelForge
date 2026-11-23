@@ -175,7 +175,9 @@ void ApiServer::registerSystemRoutes() {
         ok(res, json{{"roots", fs_browse::roots()}});
     });
     routes_->Get("/api/v1/fs/list", [this](const httplib::Request& req, httplib::Response& res) {
-        const fs_browse::Listing listing = fs_browse::list(queryValue(req, "path"));
+        const std::string fileFlag = toLower(queryValue(req, "files", "false"));
+        const bool includeFiles = fileFlag == "true" || fileFlag == "1" || fileFlag == "yes";
+        const fs_browse::Listing listing = fs_browse::list(queryValue(req, "path"), includeFiles);
         if (!listing.ok) {
             int status = 500;
             if (listing.code == "INVALID_PATH" || listing.code == "NOT_A_DIRECTORY") status = 400;
@@ -186,6 +188,18 @@ void ApiServer::registerSystemRoutes() {
             return;
         }
         ok(res, listing.toJson());
+    });
+    routes_->Get("/api/v1/fs/file", [this](const httplib::Request& req, httplib::Response& res) {
+        const fs_browse::FileInfo file = fs_browse::describeFile(queryValue(req, "path"));
+        if (!file.ok) {
+            int status = 500;
+            if (file.code == "FILE_REQUIRED" || file.code == "INVALID_PATH" || file.code == "NOT_A_FILE") status = 400;
+            else if (file.code == "FILE_NOT_FOUND") status = 404;
+            fail(res, file.code, file.message, status, file.suggestion,
+                 json{{"path", file.path}, {"name", file.name}});
+            return;
+        }
+        ok(res, file.toJson());
     });
     routes_->Get("/api/v1/system/summary", [this](const httplib::Request&, httplib::Response& res) {
         ok(res, system_.summary());

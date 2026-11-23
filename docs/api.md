@@ -65,17 +65,24 @@ Base URL：`http://127.0.0.1:8080/api/v1`
   "path": "C:////Users////seewo////Documents",
   "parent": "C:////Users////seewo",
   "entries": [
-    { "name": "ModelForge", "path": "C:////Users////seewo////Documents////ModelForge", "hidden": false }
+    { "name": "ModelForge", "path": "C:////Users////seewo////Documents////ModelForge", "directory": true, "hidden": false }
   ],
   "truncated": false
 }
 ```
 
-`entries` 只包含子目录（按名称不区分大小写排序，最多 2000 项，超出时
-`truncated=true`）。错误码：`INVALID_PATH`（400）、`DIRECTORY_NOT_FOUND`
+`entries` 默认只包含子目录。传 `files=true` 时同时返回普通文件，条目带
+`directory`（布尔）与文件大小 `size`，目录在前、同类按名称不区分大小写排序，
+最多 2000 项，超出时 `truncated=true`。错误码：`INVALID_PATH`（400）、`DIRECTORY_NOT_FOUND`
 （404）、`NOT_A_DIRECTORY`（400）、`DIRECTORY_PERMISSION_DENIED`（403）、
 `DIRECTORY_LIST_FAILED`（500）。错误响应在 `details` 中带回 `path` 与
 `parent`，前端可据此返回上一级。
+
+### GET /fs/file?path=<绝对路径>
+
+校验文件选择器中确认的文件：返回 `path`、`name`、`size`。错误码：
+`FILE_REQUIRED`（400）、`INVALID_PATH`（400）、`FILE_NOT_FOUND`（404）、
+`NOT_A_FILE`（400）。只做元数据检查，不读取文件内容。
 
 ### GET /system/summary
 

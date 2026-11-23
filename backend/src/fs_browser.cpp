@@ -39,6 +39,10 @@ json Listing::toJson() const {
     return json{{"path", path}, {"parent", parent}, {"entries", entries}, {"truncated", truncated}};
 }
 
+json FileInfo::toJson() const {
+    return json{{"path", path}, {"name", name}, {"size", size}};
+}
+
 json roots() {
     json items = json::array();
 #ifdef _WIN32
@@ -73,7 +77,7 @@ std::string classifyError(const std::error_code& ec) {
     return "DIRECTORY_LIST_FAILED";
 }
 
-Listing list(const std::string& requestedPath) {
+Listing list(const std::string& requestedPath, bool includeFiles) {
     Listing result;
 
     std::string input = trim(requestedPath);
@@ -124,25 +128,80 @@ Listing list(const std::string& requestedPath) {
         return result;
     }
 
-    std::vector<json> directories;
+    std::vector<json> entries;
     for (const auto& entry : iterator) {
-        if (directories.size() >= kMaxEntries) {
+        if (entries.size() >= kMaxEntries) {
             result.truncated = true;
             break;
         }
         std::error_code entryError;
-        if (!entry.is_directory(entryError) || entryError) continue;
+        const bool isDirectory = entry.is_directory(entryError);
+        if (entryError) continue;
+        if (!isDirectory && (!includeFiles || !entry.is_regular_file(entryError) || entryError)) continue;
         const std::string name = entry.path().filename().u8string();
         if (name.empty()) continue;
-        directories.push_back(json{{"name", name},
-                                   {"path", pathToUtf8(entry.path())},
-                                   {"hidden", name.front() == '.'}});
+        json item{{"name", name},
+                  {"path", pathToUtf8(entry.path())},
+                  {"directory", isDirectory},
+                  {"hidden", name.front() == '.'}};
+        if (!isDirectory) {
+            std::error_code sizeError;
+            const auto size = fs::file_size(entry.path(), sizeError);
+            item["size"] = sizeError ? 0ull : static_cast<uint64_t>(size);
+        }
+        entries.push_back(std::move(item));
     }
-    std::sort(directories.begin(), directories.end(), [](const json& left, const json& right) {
+    std::sort(entries.begin(), entries.end(), [](const json& left, const json& right) {
+        const bool leftDir = left.value("directory", false);
+        const bool rightDir = right.value("directory", false);
+        if (leftDir != rightDir) return leftDir;
         return toLower(left.value("name", "")) < toLower(right.value("name", ""));
     });
     result.entries = json::array();
-    for (auto& item : directories) result.entries.push_back(std::move(item));
+    for (auto& item : entries) result.entries.push_back(std::move(item));
+    result.ok = true;
+    return result;
+}
+
+FileInfo describeFile(const std::string& requestedPath) {
+    FileInfo result;
+    std::string input = trim(requestedPath);
+    if (input.empty()) {
+        result.code = "FILE_REQUIRED";
+        result.message = "必须先选择一个文件。";
+        return result;
+    }
+    fs::path path = pathFromUtf8(input);
+    std::error_code ec;
+    if (!path.is_absolute()) path = fs::absolute(path, ec);
+    if (ec || !path.is_absolute()) {
+        result.code = "INVALID_PATH";
+        result.message = "文件路径必须是绝对路径。";
+        return result;
+    }
+    path = fs::weakly_canonical(path, ec);
+    if (ec) {
+        result.code = classifyError(ec);
+        result.message = "无法解析文件路径。";
+        result.suggestion = "请检查路径拼写后重试。";
+        return result;
+    }
+    result.path = pathToUtf8(path);
+    result.name = path.filename().u8string();
+    if (!fs::exists(path, ec)) {
+        result.code = "FILE_NOT_FOUND";
+        result.message = "文件不存在：" + result.path;
+        result.suggestion = "请从目录树中重新选择。";
+        return result;
+    }
+    if (!fs::is_regular_file(path, ec)) {
+        result.code = "NOT_A_FILE";
+        result.message = "该路径不是文件：" + result.path;
+        result.suggestion = "请选择普通文件，而不是目录。";
+        return result;
+    }
+    const auto size = fs::file_size(path, ec);
+    result.size = ec ? 0ull : static_cast<uint64_t>(size);
     result.ok = true;
     return result;
 }

@@ -190,6 +190,21 @@ void testFsBrowser() {
     expect(mf::fs_browse::classifyError(std::make_error_code(std::errc::permission_denied)) ==
                "DIRECTORY_PERMISSION_DENIED", "permission error is classified");
 
+    const mf::fs_browse::Listing withFiles = mf::fs_browse::list(mf::pathToUtf8(base), true);
+    expect(withFiles.ok && withFiles.entries.size() == 4, "file mode includes files");
+    bool fileMarked = false;
+    for (const auto& entry : withFiles.entries) {
+        if (entry.value("name", "") == "note.txt") fileMarked = !entry.value("directory", true);
+    }
+    expect(fileMarked, "regular files are marked as non-directories");
+
+    const mf::fs_browse::FileInfo fileInfo = mf::fs_browse::describeFile(mf::pathToUtf8(base / "note.txt"));
+    expect(fileInfo.ok && fileInfo.name == "note.txt" && fileInfo.size > 0, "file validation succeeds");
+    expect(mf::fs_browse::describeFile(mf::pathToUtf8(base)).code == "NOT_A_FILE", "directory is not a file");
+    expect(mf::fs_browse::describeFile(mf::pathToUtf8(base / "missing")).code == "FILE_NOT_FOUND",
+           "missing file is reported");
+    expect(mf::fs_browse::describeFile("").code == "FILE_REQUIRED", "empty file path is rejected");
+
     mf::fs::remove_all(base, ec);
 }
 

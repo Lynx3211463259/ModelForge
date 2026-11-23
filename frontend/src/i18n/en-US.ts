@@ -1024,6 +1024,13 @@ const messages: Record<string, string> = {
   "浏览并添加目录": "Browse and add folder",
   "切换后立即生效并自动保存。": "Applies immediately and is saved automatically.",
   "语言设置保存失败": "Failed to save the language setting",
+  "选择文件": "Select file",
+  "浏览本机目录树并选择文件；只读取文件路径与大小，不读取文件内容。": "Browse the local folder tree and choose a file. Only its path and size are read, never its contents.",
+  "当前选中文件": "Selected file",
+  "确认选择文件": "Confirm file",
+  "读取文件失败": "Failed to read file",
+  "已选择文件": "File selected",
+  "该目录没有可显示的内容。": "Nothing to show in this folder.",
 }
 
 export default messages

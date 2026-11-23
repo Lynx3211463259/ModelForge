@@ -7,9 +7,10 @@ import Icon from './Icon.vue'
 defineOptions({ name: 'DirectoryNode' })
 
 const props = defineProps<{
-  node: { name: string; path: string; hidden?: boolean }
+  node: { name: string; path: string; hidden?: boolean; directory?: boolean }
   depth: number
   selected: string
+  fileMode?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -28,8 +29,8 @@ async function load() {
   error.value = ''
   detail.value = ''
   try {
-    const result = await api.get<{ entries: Array<{ name: string; path: string; hidden?: boolean }> }>(
-      `/api/v1/fs/list?path=${encodeURIComponent(props.node.path)}`
+    const result = await api.get<{ entries: Array<{ name: string; path: string; hidden?: boolean; directory?: boolean }> }>(
+      `/api/v1/fs/list?path=${encodeURIComponent(props.node.path)}${props.fileMode ? '&files=true' : ''}`
     )
     children.value = result.entries || []
     loaded.value = true
@@ -41,7 +42,10 @@ async function load() {
   }
 }
 
+const isDirectory = () => props.node.directory !== false
+
 function toggle() {
+  if (!isDirectory()) return
   expanded.value = !expanded.value
   if (expanded.value && !loaded.value && !loading.value) void load()
 }
@@ -51,18 +55,19 @@ function toggle() {
   <div class="dir-node">
     <div
       class="dir-row"
-      :class="{ selected: selected === node.path, dim: node.hidden }"
+      :class="{ selected: selected === node.path, dim: node.hidden, file: !isDirectory() }"
       :style="{ paddingLeft: `${depth * 14 + 6}px` }"
       @click="emit('select', node.path)"
       @dblclick="toggle"
     >
-      <button class="dir-caret-btn" :aria-label="expanded ? t('折叠') : t('展开')" @click.stop="toggle">
+      <button v-if="isDirectory()" class="dir-caret-btn" :aria-label="expanded ? t('折叠') : t('展开')" @click.stop="toggle">
         <span class="dir-caret" :class="{ open: expanded }"></span>
       </button>
-      <Icon name="folder" :size="13" />
+      <span v-else class="dir-caret-placeholder"></span>
+      <Icon :name="isDirectory() ? 'folder' : 'file'" :size="13" />
       <span class="dir-name">{{ node.name }}</span>
     </div>
-    <div v-if="expanded" class="dir-children">
+    <div v-if="expanded && isDirectory()" class="dir-children">
       <div v-if="loading" class="dir-status"><span class="spinner"></span> {{ t('正在读取…') }}</div>
       <div v-else-if="error" class="dir-error">
         <div>{{ error }}<div v-if="detail" class="dir-error-detail">{{ detail }}</div></div>
@@ -75,6 +80,7 @@ function toggle() {
         :node="child"
         :depth="depth + 1"
         :selected="selected"
+        :file-mode="fileMode"
         @select="emit('select', $event)"
       />
     </div>

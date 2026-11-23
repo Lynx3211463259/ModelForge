@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/app'
 import Icon from '../components/Icon.vue'
 import AppModal from '../components/AppModal.vue'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
+import FilePicker from '../components/DirectoryPicker.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 
 const app = useAppStore()
@@ -42,6 +43,23 @@ function openDirPicker(target: typeof dirPickerTarget.value) {
 function onDirSelected(path: string) {
   if (form.value && dirPickerTarget.value) (form.value as any)[dirPickerTarget.value] = path
   app.toast('success', t('已选择目录'), path)
+}
+
+const filePickerOpen = ref(false)
+const filePickerInitial = ref('')
+const filePickerTarget = ref<'' | 'pythonPath' | 'convertScript' | 'quantizePath' | 'llamaCliPath' |
+  'llamaServerPath' | 'llamaBenchPath' | 'llamaPplPath' | 'pplDataset'>('')
+
+function openFilePicker(target: typeof filePickerTarget.value) {
+  if (!form.value || !target) return
+  filePickerTarget.value = target
+  filePickerInitial.value = String((form.value as any)[target] || '')
+  filePickerOpen.value = true
+}
+
+function onFileSelected(path: string) {
+  if (form.value && filePickerTarget.value) (form.value as any)[filePickerTarget.value] = path
+  app.toast('success', t('已选择文件'), path)
 }
 
 // The running executable is authoritative: /api/v1/health returns the version
@@ -271,8 +289,14 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
           <div class="setting-group">
             <div class="setting-group-title">{{ t('Python 与转换脚本') }}</div>
             <div class="setting-group-copy">{{ t('Python 只作为 llama.cpp 转换工具的运行时依赖，不承载 ModelForge 业务逻辑。') }}</div>
-            <div class="field"><label class="field-label">{{ t('Python 可执行文件') }}</label><input v-model="form.pythonPath" class="input mono" placeholder="python" /><div class="field-hint">{{ t('可使用绝对路径或 PATH 中的命令名。') }}</div></div>
-            <div class="field"><label class="field-label">convert_hf_to_gguf.py</label><input v-model="form.convertScript" class="input mono" /></div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">{{ t('Python 可执行文件') }}</label><input v-model="form.pythonPath" class="input mono" placeholder="python" /><div class="field-hint">{{ t('可使用绝对路径或 PATH 中的命令名。') }}</div></div>
+              <button class="btn btn-sm" @click="openFilePicker('pythonPath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">convert_hf_to_gguf.py</label><input v-model="form.convertScript" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('convertScript')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
           </div>
 
           <div class="setting-group">
@@ -293,14 +317,32 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
               </div>
               <div class="field-hint">{{ t('官方 zip 保存在 downloads/，原样解压到 releases/<资产名>/。') }}</div>
             </div>
-            <div class="field"><label class="field-label">llama-quantize</label><input v-model="form.quantizePath" class="input mono" /></div>
-            <div class="field"><label class="field-label">llama-cli</label><input v-model="form.llamaCliPath" class="input mono" /></div>
-            <div class="field"><label class="field-label">llama-server</label><input v-model="form.llamaServerPath" class="input mono" /></div>
-            <div class="field"><label class="field-label">llama-bench</label><input v-model="form.llamaBenchPath" class="input mono" /></div>
-            <div class="field"><label class="field-label">llama-perplexity</label><input v-model="form.llamaPplPath" class="input mono" /></div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">llama-quantize</label><input v-model="form.quantizePath" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('quantizePath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">llama-cli</label><input v-model="form.llamaCliPath" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('llamaCliPath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">llama-server</label><input v-model="form.llamaServerPath" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('llamaServerPath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">llama-bench</label><input v-model="form.llamaBenchPath" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('llamaBenchPath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
+            <div class="input-with-button">
+              <div class="field"><label class="field-label">llama-perplexity</label><input v-model="form.llamaPplPath" class="input mono" /></div>
+              <button class="btn btn-sm" @click="openFilePicker('llamaPplPath')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+            </div>
             <div class="field">
               <label class="field-label">{{ t('困惑度评测文本') }}</label>
-              <input v-model="form.pplDataset" class="input mono" :placeholder="t('留空则使用 data/quality 下的默认样本')" />
+              <div class="input-with-button">
+                <input v-model="form.pplDataset" class="input mono" :placeholder="t('留空则使用 data/quality 下的默认样本')" />
+                <button class="btn btn-sm" @click="openFilePicker('pplDataset')"><Icon name="file" :size="12" /> {{ t('浏览') }}</button>
+              </div>
               <div class="field-hint">{{ t('标准对比请使用 wikitext-2 的 wiki.test.raw；内置样本只适合同一模型内部的相对比较。') }}</div>
             </div>
           </div>
@@ -445,6 +487,7 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
     </div>
 
     <DirectoryPicker v-model="dirPickerOpen" :initial-path="dirPickerInitial" @select="onDirSelected" />
+    <FilePicker v-model="filePickerOpen" mode="file" :initial-path="filePickerInitial" @select="onFileSelected" />
 
     <AppModal v-model="updateModalOpen" :title="t('发现新版本')" :subtitle="t('请确认是否下载并安装该版本')" :wide="true">
       <div v-if="updateInfo">

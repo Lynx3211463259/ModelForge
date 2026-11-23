@@ -9,7 +9,7 @@ import Icon from './Icon.vue'
 interface Listing {
   path: string
   parent: string
-  entries: Array<{ name: string; path: string; hidden?: boolean }>
+  entries: Array<{ name: string; path: string; hidden?: boolean; directory?: boolean }>
   truncated?: boolean
 }
 
@@ -17,7 +17,15 @@ const props = withDefaults(defineProps<{
   modelValue: boolean
   initialPath?: string
   title?: string
-}>(), { initialPath: '', title: '' })
+  mode?: 'directory' | 'file'
+}>(), { initialPath: '', title: '', mode: 'directory' })
+
+const isFileMode = () => props.mode === 'file'
+
+function parentOf(path: string): string {
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return index > 0 ? path.slice(0, index) : ''
+}
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -52,7 +60,8 @@ async function loadDirectory(path: string): Promise<boolean> {
   detail.value = ''
   warning.value = ''
   try {
-    const data = await api.get<Listing>(`/api/v1/fs/list?path=${encodeURIComponent(path)}`)
+    const fileFlag = isFileMode() ? '&files=true' : ''
+    const data = await api.get<Listing>(`/api/v1/fs/list?path=${encodeURIComponent(path)}${fileFlag}`)
     listing.value = data
     selectedPath.value = data.path
     manualPath.value = data.path
@@ -75,7 +84,18 @@ async function init() {
   warning.value = ''
   await loadRoots()
   const start = (props.initialPath || '').trim()
-  if (start) {
+  if (isFileMode() && start) {
+    try {
+      const file = await api.get<{ path: string }>(`/api/v1/fs/file?path=${encodeURIComponent(start)}`)
+      selectedPath.value = file.path
+      manualPath.value = file.path
+      const ok = await loadDirectory(parentOf(file.path))
+      if (ok) selectedPath.value = file.path
+    } catch {
+      await loadDirectory('')
+      warning.value = t('原路径不可用，已从默认位置开始浏览。')
+    }
+  } else if (start) {
     const ok = await loadDirectory(start)
     if (!ok) {
       error.value = ''
@@ -97,9 +117,20 @@ async function goToRoot(path: string) {
   await loadDirectory(path)
 }
 
-function confirmSelection() {
-  if (!selectedPath.value) return
-  emit('select', selectedPath.value)
+async function confirmSelection() {
+  if (!selectedPath.value || loading.value) return
+  if (isFileMode()) {
+    try {
+      const file = await api.get<{ path: string }>(`/api/v1/fs/file?path=${encodeURIComponent(selectedPath.value)}`)
+      emit('select', file.path)
+    } catch (err: any) {
+      error.value = err?.message || t('读取文件失败')
+      detail.value = err?.suggestion || ''
+      return
+    }
+  } else {
+    emit('select', selectedPath.value)
+  }
   close()
 }
 
@@ -111,8 +142,8 @@ watch(() => props.modelValue, (open) => {
 <template>
   <AppModal
     :model-value="modelValue"
-    :title="title || t('选择目录')"
-    :subtitle="t('浏览本机目录树，选中后点击确认；只读取目录名称，不读取文件内容。')"
+    :title="title || (isFileMode() ? t('选择文件') : t('选择目录'))"
+    :subtitle="isFileMode() ? t('浏览本机目录树并选择文件；只读取文件路径与大小，不读取文件内容。') : t('浏览本机目录树，选中后点击确认；只读取目录名称，不读取文件内容。')"
     wide
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -149,13 +180,14 @@ watch(() => props.modelValue, (open) => {
       <div class="dir-tree" :class="{ 'is-loading': loading }">
         <div v-if="loading && !listing" class="dir-status"><span class="spinner"></span> {{ t('正在读取目录…') }}</div>
         <template v-else-if="listing">
-          <div v-if="!listing.entries.length" class="dir-status">{{ t('该目录没有子目录，可直接确认选择。') }}</div>
+          <div v-if="!listing.entries.length" class="dir-status">{{ isFileMode() ? t('该目录没有可显示的内容。') : t('该目录没有子目录，可直接确认选择。') }}</div>
           <DirectoryNode
             v-for="entry in listing.entries"
             :key="entry.path"
             :node="entry"
             :depth="0"
             :selected="selectedPath"
+            :file-mode="isFileMode()"
             @select="selectedPath = $event"
           />
           <div v-if="listing.truncated" class="notice info">{{ t('目录项过多，仅显示前 2000 个。') }}</div>
@@ -164,7 +196,7 @@ watch(() => props.modelValue, (open) => {
       </div>
 
       <div class="dir-selected">
-        <div class="field-label">{{ t('当前选中目录') }}</div>
+        <div class="field-label">{{ isFileMode() ? t('当前选中文件') : t('当前选中目录') }}</div>
         <div class="mono dir-selected-path">{{ selectedPath || t('尚未选择目录') }}</div>
       </div>
     </div>
@@ -172,7 +204,7 @@ watch(() => props.modelValue, (open) => {
     <template #footer>
       <button class="btn" @click="close">{{ t('取消') }}</button>
       <button class="btn btn-primary" :disabled="!selectedPath || loading" @click="confirmSelection">
-        <Icon name="check" :size="13" /> {{ t('确认选择') }}
+        <Icon name="check" :size="13" /> {{ isFileMode() ? t('确认选择文件') : t('确认选择') }}
       </button>
     </template>
   </AppModal>

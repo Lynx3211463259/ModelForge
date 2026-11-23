@@ -23,6 +23,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- File mode for the picker: settings fields for executables and scripts now
+  have a Browse button, with a read-only `/api/v1/fs/file` validation endpoint
+  and file entries in `/api/v1/fs/list?files=true`.
 - A graphical directory picker for settings and model import: lazy-loaded folder
   tree with expand/collapse, location shortcuts, up navigation, direct path
   entry, selected-path display and confirm/cancel. Backed by read-only
