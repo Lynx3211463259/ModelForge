@@ -13,6 +13,16 @@
 | Python | 3.13.14 |
 | llama.cpp | 本地仓库版本（2026-11） |
 
+### 版本号单一来源
+
+仓库根目录 `VERSION` 是 ModelForge 自身版本的唯一来源。CMake 的
+`project(VERSION ...)`、POSIX 交叉编译（`scripts/cross-common.sh`）、
+Windows 打包（`scripts/package-windows.ps1`）和发布脚本
+（`scripts/publish-release.sh`）都从该文件读取版本。发版时只改这一处，
+重新构建后 `/api/v1/health` 的 `version`、设置页“当前版本”徽章、资产文件名
+与 `SHA256SUMS.txt` 会保持一致；`core_tests` 也会校验编译进去的版本与
+`VERSION` 文件一致。
+
 ### 为什么需要支持线程的编译器
 
 项目大量使用 `std::thread`、`std::mutex`、`std::condition_variable`。某些精简版 MinGW 的 libstdc++ 是单线程构建，连 `<mutex>` 都不提供，表现为：

@@ -1,5 +1,6 @@
 param(
-    [string]$Version = "1.0.0",
+    # Empty = read the single source of truth from the VERSION file.
+    [string]$Version = "",
     # Official llama.cpp release tag, e.g. b12532. Empty = newest release that
     # actually publishes a Windows asset for the selected backend.
     [string]$LlamaTag = "",
@@ -14,6 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+if (-not $Version) { $Version = (Get-Content (Join-Path $Root "VERSION") -Raw).Trim() }
 $ReleaseRoot = Join-Path $Root "release"
 $Name = "ModelForge-$Version-win64"
 $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"

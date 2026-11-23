@@ -23,7 +23,7 @@ cd "$ROOT"
 
 OWNER="${GITHUB_OWNER:-Lynx3211463259}"
 REPO="${GITHUB_REPO:-ModelForge}"
-VERSION="${VERSION:-$(grep -m1 '^VERSION=' scripts/cross-common.sh | cut -d'"' -f2)}"
+VERSION="${VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
 TAG="v${VERSION}"
 API="https://api.github.com"
 DRAFT_FLAG="false"

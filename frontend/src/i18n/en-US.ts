@@ -994,6 +994,7 @@ const messages: Record<string, string> = {
   "释放 {0}": "{0} freed",
   "删除模型及磁盘文件": "Delete model and files",
   "删除失败，模型记录已保留": "Delete failed, model record kept",
+  "当前版本已更新": "Current version updated",
 }
 
 export default messages

@@ -85,6 +85,10 @@ export const useAppStore = defineStore('app', {
         this.fromError(error, t('能力检测失败'))
       }
     },
+    async refreshHealth() {
+      this.health = await api.get<Record<string, any>>('/api/v1/health')
+      return this.health
+    },
     async refreshSettings() {
       this.settings = await api.get<Settings>('/api/v1/settings')
       return this.settings

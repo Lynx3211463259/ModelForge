@@ -21,6 +21,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   highest version of any kind. Selectable in Settings, persisted as
   `updateChannel`, and reported back as `channel` in `/api/v1/updates/check`.
 
+### Fixed
+
+- Settings page shows the running executable's version from `/api/v1/health`
+  before any update check, and refreshes it after a self-update restarts the
+  process. A single root `VERSION` file now feeds CMake, POSIX cross-builds,
+  Windows packaging and release scripts so filenames and reported versions
+  cannot drift apart.
+
 ## [1.0.0] - 2026-11-21
 
 First public release. Consolidates the functionality developed through the

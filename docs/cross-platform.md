@@ -218,6 +218,9 @@ unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
   `remove`（非递归）。Windows 文件被占用时返回 `FILE_DELETE_FAILED`（系统错误
   码 32），POSIX 权限不足返回 `PERMISSION_DENIED`（EACCES），错误文本固定为
   UTF-8，避免本地化消息破坏 JSON 响应。
+- 版本号统一由仓库根目录 `VERSION` 提供：CMake、POSIX 交叉编译脚本、Windows
+  打包脚本与发布脚本都读取它；`GET /api/v1/health` 返回的是编译进二进制的版本，
+  设置页的“当前版本”直接读取该值，更新重启后会自动刷新。
 - 更新通道 `updateChannel`（`stable` / `nightly` / `auto`）为全平台共用设置：
   `stable` 只查正式 Release，`nightly` 优先预发布并在无预发布时回退，
   `auto` 取版本号最高者。选择逻辑抽为纯函数 `updates::selectReleaseIndex`，

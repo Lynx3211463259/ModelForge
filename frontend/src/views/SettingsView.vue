@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { applyLocale, t } from '../i18n'
 import { applyTheme } from '../theme'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { api, formatTime, humanBytes, updatesApi } from '../api/client'
 import type { Settings, UpdateInfo, UpdateJob } from '../types'
 import { useAppStore } from '../stores/app'
@@ -25,6 +25,16 @@ const downloadingUpdate = ref(false)
 const applyingUpdate = ref(false)
 const updateModalOpen = ref(false)
 let updatePoll: number | undefined
+let versionPoll: number | undefined
+
+// The running executable is authoritative: /api/v1/health returns the version
+// compiled into it. Fall back to the last GitHub check only when health is
+// temporarily unavailable.
+const currentVersion = computed(() => app.health?.version || updateInfo.value?.currentVersion || '')
+
+async function refreshVersion() {
+  try { await app.refreshHealth() } catch { /* keep the last known version */ }
+}
 
 async function load() {
   loading.value = true
@@ -175,6 +185,24 @@ async function applyUpdate() {
     updateJob.value.status = 'applied'
     updateJob.value.statusLabel = t('已安排')
     app.toast('success', result.message || t('更新已安排'))
+    const previous = currentVersion.value
+    let attempts = 0
+    if (versionPoll) window.clearInterval(versionPoll)
+    versionPoll = window.setInterval(async () => {
+      attempts += 1
+      try {
+        await app.refreshHealth()
+        const next = app.health?.version || ''
+        if (next && next !== previous) {
+          window.clearInterval(versionPoll)
+          versionPoll = undefined
+          app.toast('success', t('当前版本已更新'), next)
+        } else if (attempts >= 15) {
+          window.clearInterval(versionPoll)
+          versionPoll = undefined
+        }
+      } catch { /* backend may be restarting */ }
+    }, 2000)
   } catch (error) {
     app.fromError(error, t('应用更新失败'))
   } finally {
@@ -182,8 +210,11 @@ async function applyUpdate() {
   }
 }
 
-onUnmounted(() => { if (updatePoll) window.clearInterval(updatePoll) })
-onMounted(async () => { await app.init(); await load() })
+onUnmounted(() => {
+  if (updatePoll) window.clearInterval(updatePoll)
+  if (versionPoll) window.clearInterval(versionPoll)
+})
+onMounted(async () => { await app.init(); await refreshVersion(); await load() })
 </script>
 
 <template>
@@ -313,7 +344,7 @@ onMounted(async () => { await app.init(); await load() })
           <div class="card-title">{{ t('软件更新') }}</div>
           <div class="card-subtitle">{{ t('从 GitHub Releases 检查新版本，确认后下载并安装') }}</div>
         </div>
-        <span class="badge">{{ t('当前版本') }} {{ updateInfo?.currentVersion || '—' }}</span>
+        <span class="badge">{{ t('当前版本') }} {{ currentVersion || '—' }}</span>
       </div>
       <div class="card-body">
         <div class="field" style="max-width: 420px; margin-bottom: 12px">
@@ -364,7 +395,7 @@ onMounted(async () => { await app.init(); await load() })
 
     <AppModal v-model="updateModalOpen" :title="t('发现新版本')" :subtitle="t('请确认是否下载并安装该版本')" :wide="true">
       <div v-if="updateInfo">
-        <div class="kv"><span>{{ t('当前版本') }}</span><span>{{ updateInfo.currentVersion }}</span></div>
+        <div class="kv"><span>{{ t('当前版本') }}</span><span>{{ currentVersion }}</span></div>
         <div class="kv"><span>{{ t('最新版本') }}</span><span>{{ updateInfo.latestVersion }}</span></div>
         <div class="kv"><span>{{ t('安装包') }}</span><span>{{ updateInfo.assetName }} ({{ humanBytes(updateInfo.assetSize) }})</span></div>
         <div class="setting-group-title" style="margin-top: 12px">{{ t('更新说明') }}</div>

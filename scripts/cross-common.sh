@@ -2,8 +2,8 @@
 # this is not a generic build script by itself.
 set -euo pipefail
 
-VERSION="1.0.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 
 SRC_CPP=$(ls "$ROOT"/backend/src/*.cpp | sort)
 SRC_SQLITE="$ROOT/backend/third_party/sqlite3.c"

@@ -151,6 +151,16 @@ void testUpdateHelpers() {
     expect(job.toJson().value("status", "") == "ready", "update job projection");
 }
 
+void testVersionSource() {
+    std::string fileVersion;
+    try {
+        fileVersion = mf::trim(mf::readTextFile(std::string(MODELEFORGE_SOURCE_DIR) + "/VERSION"));
+    } catch (const std::exception&) {
+        fileVersion.clear();
+    }
+    expect(fileVersion == MODELEFORGE_VERSION, "VERSION file matches the compiled version");
+}
+
 void testModelDeletion() {
     const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-del-" + mf::newId("t"));
     std::error_code ec;
@@ -281,6 +291,7 @@ int main() {
     testHfParsing();
     testRedaction();
     testUpdateHelpers();
+    testVersionSource();
     testModelDeletion();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
