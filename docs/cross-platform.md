@@ -1,6 +1,6 @@
 # ModelForge 跨平台适配说明
 
-版本：1.0.0　|　更新日期：2026-11-21
+版本：1.0.1　|　更新日期：2026-11-23
 
 本文档记录跨平台改造的平台相关点清单、适配方案、构建命令、依赖锁定、产物结构、验收矩阵、
 已知风险与未实机验证项。核心功能、输入输出行为与使用结果在各平台保持一致：同一套 C++17 核心、
@@ -12,11 +12,11 @@
 
 | 平台 | 状态 | 产物 | 实机验证 |
 | --- | --- | --- | --- |
-| Windows | ✅ 已构建 + 实机测试 | `ModelForge-1.0.0-win64.zip` | 是（Windows 11） |
-| Linux | ✅ 已构建验证（交叉编译，静态 musl） | `ModelForge-1.0.0-linux-x64/arm64.zip` | 否（构建+静态检查，未实机运行） |
-| macOS | ✅ 已构建验证（交叉编译 Mach-O） | `ModelForge-1.0.0-macos-arm64/x64.zip` | 否（未签名，未实机运行） |
-| Android | ✅ 已构建验证（Termux 形态，静态 musl） | `ModelForge-1.0.0-android-arm64/x64.zip` | 否 |
-| openEuler | ✅ 已构建验证（静态 musl） | `ModelForge-1.0.0-openeuler-x64/arm64.zip` | 否 |
+| Windows | ✅ 已构建 + 实机测试 | `ModelForge-1.0.1-win64.zip` | 是（Windows 11） |
+| Linux | ✅ 已构建验证（交叉编译，静态 musl） | `ModelForge-1.0.1-linux-x64/arm64.zip` | 否（构建+静态检查，未实机运行） |
+| macOS | ✅ 已构建验证（交叉编译 Mach-O） | `ModelForge-1.0.1-macos-arm64/x64.zip` | 否（未签名，未实机运行） |
+| Android | ✅ 已构建验证（Termux 形态，静态 musl） | `ModelForge-1.0.1-android-arm64/x64.zip` | 否 |
+| openEuler | ✅ 已构建验证（静态 musl） | `ModelForge-1.0.1-openeuler-x64/arm64.zip` | 否 |
 | iOS | ❌ 阻塞（无 Apple SDK / 无证书 / 无后台服务部署路径） | 无（仅语法静态检查） | 否 |
 
 关键说明：除 Windows 外，交叉产物均已完成**编译与链接**并通过魔数校验（ELF / Mach-O）、
@@ -109,7 +109,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
   cd frontend && npm install && npm run build
   scripts\package-windows.ps1 -LlamaBackend cpu -LlamaTag b12532
 目标架构：x64
-产物：release\ModelForge-1.0.0-win64.zip
+产物：release\ModelForge-1.0.1-win64.zip
 ```
 
 ### Linux / openEuler / Android（交叉编译，已构建验证）
@@ -121,7 +121,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
   bash scripts/build-openeuler.sh      # x86_64 + aarch64（musl 静态）
   bash scripts/build-android.sh        # arm64 + x64（musl 静态，Termux）
 目标架构：见各命令
-产物：release\ModelForge-1.0.0-{linux,openeuler,android}-{x64,arm64}.zip
+产物：release\ModelForge-1.0.1-{linux,openeuler,android}-{x64,arm64}.zip
 ```
 
 ### macOS（交叉编译，已构建验证，未签名）
@@ -130,7 +130,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
 构建环境：Windows 宿主 + zig 0.14.0
 命令：bash scripts/build-macos.sh      # arm64 + x86_64（Mach-O）
 目标架构：arm64 / x64
-产物：release\ModelForge-1.0.0-macos-{arm64,x64}.zip
+产物：release\ModelForge-1.0.1-macos-{arm64,x64}.zip
 ```
 
 ### iOS（阻塞）
@@ -144,7 +144,7 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
 ### 产物结构树（POSIX 包示例）
 
 ```
-ModelForge-1.0.0-linux-x64.zip
+ModelForge-1.0.1-linux-x64.zip
 └── linux-x64/
     ├── modelforge                 # 静态二进制
     ├── modelforge.service         # systemd（linux/openEuler）
@@ -198,7 +198,7 @@ ModelForge-1.0.0-linux-x64.zip
 
 ```bash
 # Linux / openEuler
-unzip ModelForge-1.0.0-linux-x64.zip && cd linux-x64
+unzip ModelForge-1.0.1-linux-x64.zip && cd linux-x64
 ./modelforge serve --no-browser &  curl http://127.0.0.1:8080/api/v1/health
 
 # macOS（先签名）
@@ -207,7 +207,7 @@ xattr -dr com.apple.quarantine ./modelforge   # 或完整 codesign + notarize
 
 # Android（Termux）
 pkg install curl python
-unzip ModelForge-1.0.0-android-arm64.zip && cd android-arm64 && bash run.sh
+unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
 ```
 
 

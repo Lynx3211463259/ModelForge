@@ -23,7 +23,7 @@ point is not to wrap one conversion script: model scanning, real child
 processes, a task queue, live events, evidence-based logs and artifact
 validation are organized into a single runnable application.
 
-Current release: **1.0.0**. Windows is built and validated on real hardware;
+Current release: **1.0.1**. Windows is built and validated on real hardware;
 Linux, macOS, Android (Termux) and openEuler are cross-built and statically
 checked. See [docs/cross-platform.md](docs/cross-platform.md).
 
@@ -146,11 +146,11 @@ Portable builds are attached to
 
 | Platform | Artifact | Status |
 | --- | --- | --- |
-| Windows x64 | `ModelForge-1.0.0-win64.zip` | Built and validated on Windows 11 |
-| Linux x64 / arm64 | `ModelForge-1.0.0-linux-{x64,arm64}.zip` | Cross-built, not run on device |
-| macOS arm64 / x64 | `ModelForge-1.0.0-macos-{arm64,x64}.zip` | Cross-built, unsigned |
-| Android (Termux) | `ModelForge-1.0.0-android-{arm64,x64}.zip` | Cross-built, not run on device |
-| openEuler x64 / arm64 | `ModelForge-1.0.0-openeuler-{x64,arm64}.zip` | Cross-built, not run on device |
+| Windows x64 | `ModelForge-1.0.1-win64.zip` | Built and validated on Windows 11 |
+| Linux x64 / arm64 | `ModelForge-1.0.1-linux-{x64,arm64}.zip` | Cross-built, not run on device |
+| macOS arm64 / x64 | `ModelForge-1.0.1-macos-{arm64,x64}.zip` | Cross-built, unsigned |
+| Android (Termux) | `ModelForge-1.0.1-android-{arm64,x64}.zip` | Cross-built, not run on device |
+| openEuler x64 / arm64 | `ModelForge-1.0.1-openeuler-{x64,arm64}.zip` | Cross-built, not run on device |
 | iOS | — | Blocked by platform policy (no long-lived background service, signing required) |
  
 ### In-app software update
@@ -170,7 +170,7 @@ a mirror or a local test server.
 
 ### Windows
 
-1. Download and extract `ModelForge-1.0.0-win64.zip`.
+1. Download and extract `ModelForge-1.0.1-win64.zip`.
 2. Run `start.bat`, or `modelforge.exe serve` from the extracted folder.
 3. Folder and file fields in Settings, the model import dialog, the conversion
    output path and watched folders have a **Browse** button that opens an in-app
@@ -190,7 +190,7 @@ llama.cpp assets.
 ### Linux / macOS / Android / openEuler
 
 ```bash
-unzip ModelForge-1.0.0-linux-x64.zip
+unzip ModelForge-1.0.1-linux-x64.zip
 cd linux-x64
 ./modelforge serve --no-browser
 ```

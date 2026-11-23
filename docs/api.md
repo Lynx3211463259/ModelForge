@@ -1,4 +1,4 @@
-# ModelForge REST API（v1.0.0）
+# ModelForge REST API（v1.0.1）
 
 Base URL：`http://127.0.0.1:8080/api/v1`
 
@@ -39,7 +39,7 @@ Base URL：`http://127.0.0.1:8080/api/v1`
   "ok": true,
   "data": {
     "status": "ok",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "uptimeMs": 12345,
     "port": 8081,
     "configuredPort": 8080,
