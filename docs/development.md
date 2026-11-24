@@ -23,6 +23,24 @@ Windows 打包（`scripts/package-windows.ps1`）和发布脚本
 与 `SHA256SUMS.txt` 会保持一致；`core_tests` 也会校验编译进去的版本与
 `VERSION` 文件一致。
 
+### 预发布版本号
+
+`VERSION` 允许带预发布后缀，例如 `1.1.0-beta.1`。CMake 的 `project(VERSION ...)`
+只接受数字，因此 `CMakeLists.txt` 会取前缀 `1.1.0` 交给 `project()`，而编译进
+程序的 `MODELEFORGE_VERSION`、资产文件名、GitHub 标签仍使用完整字符串。
+更新检查按数字部分比较，正式版发布后预发布用户会收到升级提示。
+
+### 获取 Zig（POSIX 交叉编译）
+
+`scripts/build-linux.sh`、`build-macos.sh`、`build-openeuler.sh`、`build-android.sh`、
+`build-ios.sh` 需要 Zig。若 ziglang.org 下载缓慢，可用 PyPI 镜像获取同一版本：
+
+```bash
+pip download ziglang==0.14.1 --no-deps -d temp/zigpkg -i https://pypi.tuna.tsinghua.edu.cn/simple
+python -c "import zipfile,sys;zipfile.ZipFile(sys.argv[1]).extractall('temp/zig')" temp/zigpkg/ziglang-0.14.1-py3-none-win_amd64.whl
+ZIG="$PWD/temp/zig/ziglang/zig.exe" bash scripts/build-linux.sh
+```
+
 ### 为什么需要支持线程的编译器
 
 项目大量使用 `std::thread`、`std::mutex`、`std::condition_variable`。某些精简版 MinGW 的 libstdc++ 是单线程构建，连 `<mutex>` 都不提供，表现为：
