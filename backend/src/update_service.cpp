@@ -141,6 +141,24 @@ int selectReleaseIndex(const json& releases, const std::string& channel) {
     return bestAll;
 }
 
+std::vector<std::string> candidateAssetNames(const std::string& version, const std::string& suffix) {
+    std::vector<std::string> names;
+    std::string full = trim(version);
+    if (!full.empty() && (full[0] == 'v' || full[0] == 'V')) full = full.substr(1);
+    if (!full.empty()) names.push_back("ModelForge-" + full + "-" + suffix + ".zip");
+    std::vector<int> parts;
+    if (parseVersion(version, parts)) {
+        std::string digits;
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (i) digits.push_back('.');
+            digits += std::to_string(parts[i]);
+        }
+        const std::string fallback = "ModelForge-" + digits + "-" + suffix + ".zip";
+        if (std::find(names.begin(), names.end(), fallback) == names.end()) names.push_back(fallback);
+    }
+    return names;
+}
+
 } // namespace updates
 
 namespace {
@@ -168,6 +186,7 @@ std::string versionDigits(const std::string& tag) {
     }
     return out;
 }
+
 
 int currentProcessId() {
 #ifdef _WIN32
@@ -384,18 +403,21 @@ UpdateInfo UpdateService::check(const std::string& channel) {
     const std::string notes = release.value("body", "");
     result.releaseNotes = notes.size() > 20000 ? notes.substr(0, 20000) + "\n\n…（已截断，完整说明见发布页）" : notes;
 
-    const std::string digits = versionDigits(result.latestVersion);
-    const std::string expected = "ModelForge-" + digits + "-" + updates::platformAssetSuffix() + ".zip";
+    // Pre-releases publish archives with the full version ("1.1.0-beta.1"),
+    // stable releases use the numeric version. Accept both spellings.
+    const std::vector<std::string> expectedNames =
+        updates::candidateAssetNames(result.latestVersion, updates::platformAssetSuffix());
     for (const auto& asset : release.value("assets", json::array())) {
-        if (asset.value("name", "") != expected) continue;
-        result.assetName = expected;
+        const std::string name = asset.value("name", "");
+        if (std::find(expectedNames.begin(), expectedNames.end(), name) == expectedNames.end()) continue;
+        result.assetName = name;
         result.assetUrl = asset.value("browser_download_url", "");
         result.assetSize = asset.value("size", 0ull);
         break;
     }
     if (result.assetUrl.empty()) {
         result.code = "ASSET_NOT_FOUND";
-        result.message = "当前平台没有匹配的安装包：" + expected;
+        result.message = "当前平台没有匹配的安装包：" + expectedNames.front();
         result.suggestion = "请从发布页手动下载：" + result.htmlUrl;
         return result;
     }

@@ -23,6 +23,10 @@ int compareVersions(const std::string& left, const std::string& right);
 std::string platformAssetSuffix();
 // Reads "<sha256>  <filename>" lines from a SHA256SUMS document.
 std::string checksumFor(const std::string& sha256sums, const std::string& fileName);
+// Asset names that may belong to a release: the exact version (including a
+// pre-release suffix, "1.1.0-beta.1") first, then the numeric prefix ("1.1.0").
+// Published archives use whichever form the VERSION file had at build time.
+std::vector<std::string> candidateAssetNames(const std::string& version, const std::string& suffix);
 // Normalizes the update channel: "stable" | "nightly" | "auto".
 // Unknown values fall back to "stable".
 std::string normalizeChannel(const std::string& channel);

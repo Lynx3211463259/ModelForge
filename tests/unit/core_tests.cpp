@@ -117,6 +117,14 @@ void testUpdateHelpers() {
     expect(mf::updates::compareVersions("v1.0.0", "1.0.1") < 0, "older version");
     expect(mf::updates::compareVersions("bad", "1.0.0") == 0, "malformed version never upgrades");
 
+    const std::vector<std::string> preAssets = mf::updates::candidateAssetNames("v1.1.0-beta.1", "win64");
+    expect(preAssets.size() == 2 && preAssets[0] == "ModelForge-1.1.0-beta.1-win64.zip" &&
+               preAssets[1] == "ModelForge-1.1.0-win64.zip",
+           "pre-release asset names try full version first");
+    const std::vector<std::string> stableAssets = mf::updates::candidateAssetNames("1.0.1", "linux-x64");
+    expect(stableAssets.size() == 1 && stableAssets[0] == "ModelForge-1.0.1-linux-x64.zip",
+           "stable asset name has no duplicate");
+
     expect(mf::updates::normalizeChannel(" Nightly ") == "nightly", "channel normalization");
     expect(mf::updates::normalizeChannel("whatever") == "stable", "unknown channel falls back to stable");
 
