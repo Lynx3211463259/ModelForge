@@ -517,8 +517,9 @@ std::string LlamaRuntimeService::backendFromDir(const fs::path& dir) {
     // Static builds and hand-copied folders carry no shared libraries: fall back to
     // the official asset name, which always embeds the backend ("-bin-win-cuda-x64").
     const std::string name = toLower(pathToUtf8(dir.filename()));
-    for (const char* backend : {"cuda", "vulkan", "rocm", "hip", "sycl", "openvino", "opencl", "cpu"}) {
+    for (const std::string backend : {"cuda", "vulkan", "rocm", "hip", "sycl", "openvino", "opencl", "cpu"}) {
         const std::string token = std::string("-") + backend;
+        // Compare std::string values: `backend == "hip"` on a const char* compares pointers.
         if (name.find(token) != std::string::npos) return backend == "hip" ? "rocm" : backend;
     }
     return "";
