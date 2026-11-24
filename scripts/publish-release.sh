@@ -28,6 +28,14 @@ TAG="v${VERSION}"
 API="https://api.github.com"
 DRAFT_FLAG="false"
 [ "${DRAFT:-0}" = "1" ] && DRAFT_FLAG="true"
+# A hyphen in the version marks a pre-release (1.1.0-beta.1). PRERELEASE=1/0
+# overrides the detection; pre-releases never show up as "latest" on GitHub.
+PRERELEASE_FLAG="false"
+case "$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')" in
+  *-*) PRERELEASE_FLAG="true" ;;
+esac
+if [ "${PRERELEASE:-auto}" = "1" ]; then PRERELEASE_FLAG="true"; fi
+if [ "${PRERELEASE:-auto}" = "0" ]; then PRERELEASE_FLAG="false"; fi
 
 log() { printf '\033[1;36m[publish]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -133,16 +141,16 @@ else:
 open(out_path, "w", encoding="utf-8").write(notes)
 PY
 payload_file="$(mktemp)"
-python - "$TAG" "$VERSION" "$body_file" "$DRAFT_FLAG" "$payload_file" <<'PY'
+python - "$TAG" "$VERSION" "$body_file" "$DRAFT_FLAG" "$PRERELEASE_FLAG" "$payload_file" <<'PY'
 import json, sys
 
-tag, version, body_path, draft, out_path = sys.argv[1:6]
+tag, version, body_path, draft, prerelease, out_path = sys.argv[1:7]
 payload = {
     "tag_name": tag,
     "name": f"ModelForge {version}",
     "body": open(body_path, encoding="utf-8").read(),
     "draft": draft == "true",
-    "prerelease": False,
+    "prerelease": prerelease == "true",
 }
 with open(out_path, "w", encoding="utf-8") as fh:
     json.dump(payload, fh)

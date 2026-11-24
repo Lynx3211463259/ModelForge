@@ -30,6 +30,9 @@ Windows 打包（`scripts/package-windows.ps1`）和发布脚本
 程序的 `MODELEFORGE_VERSION`、资产文件名、GitHub 标签仍使用完整字符串。
 更新检查按数字部分比较，正式版发布后预发布用户会收到升级提示。
 
+发布脚本会依据版本号中的 `-` 自动把 GitHub Release 标记为预发布
+（`1.1.0-beta.1` → prerelease），也可用 `PRERELEASE=1/0` 覆盖。
+
 ### 获取 Zig（POSIX 交叉编译）
 
 `scripts/build-linux.sh`、`build-macos.sh`、`build-openeuler.sh`、`build-android.sh`、
