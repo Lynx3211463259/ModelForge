@@ -8,9 +8,10 @@
 # certificate, and App Store / ad-hoc signing — none of which exist on Windows and
 # none of which can be reproduced with a cross-compiler.
 #
-# What this script does: performs a syntax/type-only compile against the darwin stubs
-# zig ships, so CI can still catch POSIX-layer regressions. It does NOT produce a
-# runnable iOS artifact.
+# What this script does: attempts a syntax/type-only compile against the darwin
+# stubs zig ships. Zig has no iOS libc headers without the Apple SDK, so on Windows
+# the check stops at <sys/param.h>. It does NOT produce a runnable iOS artifact;
+# a real check requires Xcode on macOS.
 #
 # Reproducible unblocking steps on a Mac:
 #   1. Install Xcode + Command Line Tools.

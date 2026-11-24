@@ -269,5 +269,7 @@ unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
   `backendFromDir` 已覆盖这两类文件名，静态构建则按资产名（含 `-cuda` 等）回退判断。
 - **健康自检**：`web-root` 检查依赖发行包中 `frontend/dist` 的位置；服务化部署
   （systemd/launchd）时若静态目录不同，需在设置中修正。
-- Android / iOS 仍只做源码层面的语法与交叉编译校验，未实机验证上述页面与文件
-  选择器行为。
+- Android 已完成交叉编译与链接校验（musl 静态）；iOS 没有可分发产物：Zig 在
+  没有 Apple SDK 的 Windows 上无法提供 iOS libc 头文件（首个错误是
+  `sys/param.h` 缺失），因此语法检查也需要在安装 Xcode 的 macOS 上执行。两个平台
+  的界面与文件选择器行为均未实机验证。
