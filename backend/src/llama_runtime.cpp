@@ -426,6 +426,7 @@ fs::path LlamaRuntimeService::root() const {
 }
 
 fs::path LlamaRuntimeService::statePath() const { return root() / "modelforge-runtime.json"; }
+fs::path LlamaRuntimeService::registryPath() const { return root() / "backends.json"; }
 fs::path LlamaRuntimeService::downloadsDir() const { return root() / "downloads"; }
 fs::path LlamaRuntimeService::releasesDir() const { return root() / "releases"; }
 fs::path LlamaRuntimeService::sourceDir() const { return root() / "source"; }
@@ -496,13 +497,30 @@ std::string LlamaRuntimeService::backendFromDir(const fs::path& dir) {
         if (ec || !entry.is_regular_file(ec)) continue;
         dlls.insert(toLower(pathToUtf8(entry.path().filename())));
     }
-    if (dlls.count("ggml-cuda.dll")) return "cuda";
-    if (dlls.count("ggml-vulkan.dll")) return "vulkan";
-    if (dlls.count("ggml-hip.dll") || dlls.count("ggml-rocm.dll")) return "rocm";
-    if (dlls.count("ggml-sycl.dll")) return "sycl";
-    if (dlls.count("ggml-openvino.dll")) return "openvino";
-    if (dlls.count("ggml-opencl.dll")) return "opencl";
-    if (dlls.count("ggml-cpu.dll") || dlls.count("llama.dll")) return "cpu";
+    auto has = [&](const std::string& stem) {
+        // Windows ships .dll, Linux .so and macOS .dylib; accept any of them.
+        for (const char* ext : {".dll", ".so", ".dylib"}) {
+            if (dlls.count(stem + ext)) return true;
+            for (const auto& name : dlls) {
+                if (startsWith(name, stem + ext + ".")) return true;  // libggml-cuda.so.1
+            }
+        }
+        return false;
+    };
+    if (has("ggml-cuda") || has("libggml-cuda")) return "cuda";
+    if (has("ggml-vulkan") || has("libggml-vulkan")) return "vulkan";
+    if (has("ggml-hip") || has("ggml-rocm") || has("libggml-hip") || has("libggml-rocm")) return "rocm";
+    if (has("ggml-sycl") || has("libggml-sycl")) return "sycl";
+    if (has("ggml-openvino") || has("libggml-openvino")) return "openvino";
+    if (has("ggml-opencl") || has("libggml-opencl")) return "opencl";
+    if (has("ggml-cpu") || has("llama") || has("libggml-cpu") || has("libllama")) return "cpu";
+    // Static builds and hand-copied folders carry no shared libraries: fall back to
+    // the official asset name, which always embeds the backend ("-bin-win-cuda-x64").
+    const std::string name = toLower(pathToUtf8(dir.filename()));
+    for (const char* backend : {"cuda", "vulkan", "rocm", "hip", "sycl", "openvino", "opencl", "cpu"}) {
+        const std::string token = std::string("-") + backend;
+        if (name.find(token) != std::string::npos) return backend == "hip" ? "rocm" : backend;
+    }
     return "";
 }
 
@@ -699,6 +717,273 @@ json LlamaRuntimeService::status() const {
     if (!releaseDir.empty() && backend.empty()) issues.push_back("无法从发行目录判断加速后端（仅发现 CPU 依赖）");
     out["issues"] = issues;
     return out;
+}
+
+json LlamaRuntimeService::registry() const {
+    std::error_code ec;
+    json value = json::object();
+    if (fs::is_regular_file(registryPath(), ec)) {
+        try {
+            value = readJsonFile(registryPath());
+        } catch (...) {
+            value = json::object();
+        }
+    }
+    if (!value.is_object()) value = json::object();
+    if (!value.contains("items") || !value["items"].is_array()) value["items"] = json::array();
+    return value;
+}
+
+bool LlamaRuntimeService::writeRegistry(const json& value) const {
+    return writeTextFileAtomic(registryPath(), value.dump(2));
+}
+
+void LlamaRuntimeService::upsertBackendEntry(const std::string& releaseDir, const std::string& tag,
+                                             const std::string& asset, const std::string& backend,
+                                             const std::string& sourceRoot, const std::string& sha256,
+                                             uint64_t size) {
+    const std::string id = pathFromUtf8(releaseDir).filename().u8string();
+    if (id.empty()) return;
+    json reg = registry();
+    json items = json::array();
+    std::string installedAt = isoNow();
+    for (const auto& item : reg["items"]) {
+        if (!item.is_object()) continue;
+        if (item.value("id", "") == id) {
+            const std::string previous = item.value("installedAt", "");
+            if (!previous.empty()) installedAt = previous;
+            continue;
+        }
+        json copy = item;
+        copy["active"] = false;
+        items.push_back(copy);
+    }
+    json entry{{"id", id},
+               {"tag", tag},
+               {"asset", asset},
+               {"backend", backend},
+               {"backendLabel", backendLabel(backend)},
+               {"releaseDir", releaseDir},
+               {"sourceRoot", sourceRoot},
+               {"sha256", sha256},
+               {"size", size},
+               {"installedAt", installedAt},
+               {"active", true}};
+    items.insert(items.begin(), entry);
+    reg["items"] = items;
+    reg["updatedAt"] = isoNow();
+    if (!writeRegistry(reg)) {
+        Logger::instance().warn("[llama-runtime] 无法写入后端清单 " + pathToUtf8(registryPath()));
+    }
+}
+
+json LlamaRuntimeService::backends() const {
+    std::error_code ec;
+    const json state = fs::is_regular_file(statePath(), ec) ? [&] {
+        try { return readJsonFile(statePath()); } catch (...) { return json::object(); }
+    }() : json::object();
+    const std::string activeDir = pathToUtf8(fs::absolute(pathFromUtf8(getString(state, "releaseDir")), ec));
+    const std::string activeTag = getString(state, "tag");
+
+    // Registry entries first, then any release directory that predates the registry.
+    json items = json::array();
+    std::set<std::string> seen;
+    const json reg = registry();
+    for (const auto& entry : reg["items"]) {
+        if (!entry.is_object()) continue;
+        const std::string dir = entry.value("releaseDir", "");
+        if (dir.empty()) continue;
+        const fs::path releasePath = pathFromUtf8(dir);
+        const std::string canonical = pathToUtf8(fs::absolute(releasePath, ec));
+        if (!seen.insert(toLower(canonical)).second) continue;
+        const bool present = fs::is_directory(releasePath, ec);
+        const std::string cli = findTool(releasePath, {"llama-cli.exe", "llama-cli", "llama.exe", "llama"}, 2);
+        const std::string quantize = findTool(releasePath, {"llama-quantize.exe", "llama-quantize"}, 2);
+        json item = entry;
+        item["present"] = present;
+        item["usable"] = present && (!cli.empty() || !quantize.empty());
+        item["cliPath"] = cli;
+        item["quantizePath"] = quantize;
+        item["active"] = !activeDir.empty() && toLower(canonical) == toLower(activeDir);
+        item["backendLabel"] = backendLabel(entry.value("backend", ""));
+        items.push_back(item);
+    }
+    if (fs::is_directory(releasesDir(), ec)) {
+        for (const auto& dir : fs::directory_iterator(releasesDir(), ec)) {
+            if (ec || !dir.is_directory(ec)) continue;
+            const std::string canonical = pathToUtf8(fs::absolute(dir.path(), ec));
+            if (!seen.insert(toLower(canonical)).second) continue;
+            const std::string name = pathToUtf8(dir.path().filename());
+            const std::string cli = findTool(dir.path(), {"llama-cli.exe", "llama-cli", "llama.exe", "llama"}, 2);
+            const std::string quantize = findTool(dir.path(), {"llama-quantize.exe", "llama-quantize"}, 2);
+            if (cli.empty() && quantize.empty()) continue;
+            const std::string tag = tagFromReleaseDir(name);
+            const std::string backend = backendFromDir(dir.path());
+            items.push_back(json{{"id", name},
+                                 {"tag", tag},
+                                 {"asset", name},
+                                 {"backend", backend},
+                                 {"backendLabel", backendLabel(backend)},
+                                 {"releaseDir", canonical},
+                                 {"sourceRoot", ""},
+                                 {"sha256", ""},
+                                 {"size", 0},
+                                 {"installedAt", ""},
+                                 {"active", !activeDir.empty() && toLower(canonical) == toLower(activeDir)},
+                                 {"present", true},
+                                 {"usable", true},
+                                 {"cliPath", cli},
+                                 {"quantizePath", quantize},
+                                 {"detected", true}});
+        }
+    }
+    // Backends without a referenced directory are stale registry rows.
+    json available = json::array();
+    for (const auto& item : items) {
+        if (item.value("present", false)) available.push_back(item);
+    }
+    json out{{"items", available}, {"count", static_cast<int>(available.size())}};
+    int activeCount = 0;
+    for (const auto& item : available) if (item.value("active", false)) ++activeCount;
+    out["activeCount"] = activeCount;
+    out["activeId"] = "";
+    for (const auto& item : available) {
+        if (item.value("active", false)) {
+            out["activeId"] = item.value("id", "");
+            break;
+        }
+    }
+    out["activeTag"] = activeTag;
+    out["registryPath"] = pathToUtf8(registryPath());
+    out["releasesDir"] = pathToUtf8(releasesDir());
+    return out;
+}
+
+json LlamaRuntimeService::refreshBackends() {
+    std::error_code ec;
+    json items = json::array();
+    if (fs::is_directory(releasesDir(), ec)) {
+        for (const auto& dir : fs::directory_iterator(releasesDir(), ec)) {
+            if (ec || !dir.is_directory(ec)) continue;
+            const std::string name = pathToUtf8(dir.path().filename());
+            const std::string cli = findTool(dir.path(), {"llama-cli.exe", "llama-cli", "llama.exe", "llama"}, 2);
+            const std::string quantize = findTool(dir.path(), {"llama-quantize.exe", "llama-quantize"}, 2);
+            if (cli.empty() && quantize.empty()) continue;
+            items.push_back(json{{"id", name},
+                                 {"tag", tagFromReleaseDir(name)},
+                                 {"asset", name},
+                                 {"backend", backendFromDir(dir.path())},
+                                 {"releaseDir", pathToUtf8(fs::absolute(dir.path(), ec))},
+                                 {"sourceRoot", ""},
+                                 {"sha256", ""},
+                                 {"size", 0},
+                                 {"installedAt", isoNow()},
+                                 {"active", false}});
+        }
+    }
+    // Keep the currently active release marked as active.
+    const json current = backends();
+    const std::string activeId = current.value("activeId", "");
+    for (auto& item : items) {
+        item["active"] = item.value("id", "") == activeId;
+    }
+    json reg{{"items", items}, {"updatedAt", isoNow()}, {"source", "directory-scan"}};
+    writeRegistry(reg);
+    return backends();
+}
+
+bool LlamaRuntimeService::activateBackend(const std::string& id, std::string& error) {
+    const json list = backends();
+    const json* target = nullptr;
+    for (const auto& item : list["items"]) {
+        if (item.value("id", "") == id) {
+            target = &item;
+            break;
+        }
+    }
+    if (!target) {
+        error = "未找到该后端: " + id;
+        return false;
+    }
+    if (!target->value("present", false) || !target->value("usable", false)) {
+        error = "后端文件缺失或不完整，无法启用";
+        return false;
+    }
+    const std::string releaseDir = target->value("releaseDir", "");
+    const std::string backend = target->value("backend", "");
+    bool changed = false;
+    applySettings(pathFromUtf8(releaseDir), target->value("tag", ""), target->value("asset", ""), backend,
+                  target->value("sourceRoot", ""), changed);
+    json state{{"tag", target->value("tag", "")},
+               {"asset", target->value("asset", "")},
+               {"backend", backend},
+               {"releaseDir", releaseDir},
+               {"sourceRoot", target->value("sourceRoot", "")},
+               {"sha256", target->value("sha256", "")},
+               {"size", target->value("size", 0ull)},
+               {"verified", !target->value("sha256", "").empty()},
+               {"installedAt", target->value("installedAt", "")},
+               {"source", "multi-backend"},
+               {"repo", settings_.get().llamaRepo.empty() ? std::string(kRepo) : settings_.get().llamaRepo},
+               {"releaseUrl", ""}};
+    if (!writeTextFileAtomic(statePath(), state.dump(2))) {
+        error = "无法写入运行时状态文件: " + pathToUtf8(statePath());
+        return false;
+    }
+    json reg = registry();
+    for (auto& item : reg["items"]) {
+        if (!item.is_object()) continue;
+        item["active"] = item.value("id", "") == id;
+    }
+    writeRegistry(reg);
+    Logger::instance().info("[llama-runtime] 已切换后端 " + id + " (" + backend + ")");
+    return true;
+}
+
+bool LlamaRuntimeService::removeBackend(const std::string& id, std::string& error) {
+    const json list = backends();
+    json target = json::object();
+    for (const auto& item : list["items"]) {
+        if (item.value("id", "") == id) {
+            target = item;
+            break;
+        }
+    }
+    if (target.empty()) {
+        error = "未找到该后端: " + id;
+        return false;
+    }
+    if (target.value("active", false)) {
+        error = "该后端正在使用中，请先启用另一个后端再删除";
+        return false;
+    }
+    if (list.value("count", 0) <= 1) {
+        error = "至少需要保留一个可用后端";
+        return false;
+    }
+    std::error_code ec;
+    const fs::path dir = pathFromUtf8(target.value("releaseDir", ""));
+    if (!dir.empty() && fs::is_directory(dir, ec)) {
+        if (!isPathInside(releasesDir(), dir)) {
+            error = "拒绝删除 releases 目录之外的文件: " + pathToUtf8(dir);
+            return false;
+        }
+        fs::remove_all(dir, ec);
+        if (ec) {
+            error = "删除后端目录失败: " + ec.message();
+            return false;
+        }
+    }
+    json reg = registry();
+    json kept = json::array();
+    for (const auto& item : reg["items"]) {
+        if (item.is_object() && item.value("id", "") == id) continue;
+        kept.push_back(item);
+    }
+    reg["items"] = kept;
+    writeRegistry(reg);
+    Logger::instance().info("[llama-runtime] 已删除后端 " + id);
+    return true;
 }
 
 json LlamaRuntimeService::probe() const {
@@ -1549,6 +1834,10 @@ void LlamaRuntimeService::runInstall(std::shared_ptr<LlamaInstallJob> job, std::
     if (!writeTextFileAtomic(statePath(), state.dump(2))) {
         addLog(job, "警告：无法写入 " + pathToUtf8(statePath()));
     }
+    // Keep the multi-backend registry in sync so a freshly installed backend can be
+    // switched back to later without re-downloading it.
+    upsertBackendEntry(pathToUtf8(releaseDir), tag, assetName, target->backend, sourceRoot,
+                       digestHex(target->digest), target->size);
 
     std::lock_guard<std::mutex> lock(jobMutex_);
     job->status = "completed";

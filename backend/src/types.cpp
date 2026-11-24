@@ -13,11 +13,11 @@ json AppSettings::toJson() const {
         {"llamaPplPath", llamaPplPath}, {"pplDataset", pplDataset},
         {"llamaRoot", llamaRoot}, {"llamaBackend", llamaBackend}, {"llamaChannel", llamaChannel},
         {"llamaRepo", llamaRepo},
-        {"defaultModelDir", defaultModelDir}, {"defaultOutputDir", defaultOutputDir}, {"tempDir", tempDir},
+        {"defaultModelDir", defaultModelDir}, {"datasetsDir", datasetsDir}, {"defaultOutputDir", defaultOutputDir}, {"tempDir", tempDir},
         {"dataDir", dataDir}, {"webRoot", webRoot}, {"bindAddress", bindAddress}, {"port", port},
         {"threads", threads}, {"maxConcurrent", maxConcurrent}, {"autoOpenBrowser", autoOpenBrowser},
         {"logTimestamps", logTimestamps}, {"theme", theme}, {"language", language},
-        {"updateChannel", updateChannel},
+        {"updateChannel", updateChannel}, {"autoCheckUpdates", autoCheckUpdates},
         {"folderWatchEnabled", folderWatchEnabled}, {"watchFolders", watchFolders},
         {"watchIntervalSec", watchIntervalSec}, {"watchAutoConvert", watchAutoConvert},
         {"watchPresetId", watchPresetId}
@@ -41,9 +41,11 @@ AppSettings AppSettings::fromJson(const json& value, const AppSettings& defaults
     str("watchPresetId", s.watchPresetId);
     str("llamaRoot", s.llamaRoot); str("llamaBackend", s.llamaBackend); str("llamaChannel", s.llamaChannel);
     str("llamaRepo", s.llamaRepo);
-    str("defaultModelDir", s.defaultModelDir); str("defaultOutputDir", s.defaultOutputDir); str("tempDir", s.tempDir);
+    str("defaultModelDir", s.defaultModelDir); str("datasetsDir", s.datasetsDir);
+    str("defaultOutputDir", s.defaultOutputDir); str("tempDir", s.tempDir);
     str("webRoot", s.webRoot); str("bindAddress", s.bindAddress); str("theme", s.theme); str("language", s.language);
     str("updateChannel", s.updateChannel);
+    boolean("autoCheckUpdates", s.autoCheckUpdates);
     num("port", s.port); num("threads", s.threads); num("maxConcurrent", s.maxConcurrent);
     boolean("autoOpenBrowser", s.autoOpenBrowser); boolean("logTimestamps", s.logTimestamps);
     boolean("folderWatchEnabled", s.folderWatchEnabled);

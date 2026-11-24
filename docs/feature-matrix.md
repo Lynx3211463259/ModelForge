@@ -42,6 +42,13 @@
 | 30 | 主题与多语言 | ✅ | 深色 / 浅色 / 跟随系统（CSS 语义变量，无布局分叉）；简体中文 / English，中文源串为键、缺失回退；设置项持久化到 SQLite。后端诊断文本仍为中文。 |
 | 31 | 应用图标 | ✅ | 由 `branding/model-forge-logo.jpg` 生成多尺寸 ICO（16–256）与 PNG；Web UI 全平台统一显示 favicon / apple-touch-icon，Windows exe 通过 RC 内嵌同一份 ICO。`scripts/generate-icons.py` 保证可复现。 |
 
+| 34 | Hugging Face 数据集下载 | ✅ | `repoType=dataset` 或 `huggingface.co/datasets/...` 链接自动切换 datasets API；文件按 parquet/arrow/csv/jsonl/text/image/audio/video/archive/tensor 分类；落盘到 `datasetsDir` 并登记离线资源库（不导入模型库）。断点续传、并发、暂停/继续/取消/重试与模型下载一致。 |
+| 35 | 多后端并装 | ✅ | 每个官方 release 解压到 `releases/<asset>` 独立目录，登记在 `backends.json`；运行引擎页可启用/删除；启用只改写 `llama-quantize`/`llama-cli` 等工具路径与 `modelforge-runtime.json`，不重新下载。当前后端不可删除，且至少保留一个可用后端。后端识别覆盖 `.dll`/`.so`/`.dylib` 与官方资产名。 |
+| 36 | 离线资源库 | ✅ | `offline_resources` 统一索引本地模型、数据集与推理后端，实时检测路径存在性与体积（记录值仅作下限比较，额外文件不算损坏）；导出 `modelforge-offline-bundle.json` + `SHA256SUMS.txt`，可选复制文件；导入支持 `basePath` 重定位、缺失与校验失败清单；移除条目只删索引。 |
+| 37 | 依赖健康自检 | ✅ | 20 项检查：数据库 `quick_check`、目录存在/可写、磁盘空间、Python 与依赖、转换脚本、llama.cpp 全部工具、后端清单、离线资源完整性、监听配置、前端静态目录，可选 HF Token 网络探测。白名单修复：创建目录、重检工具路径、重扫后端、重建索引。默认离线运行。 |
+
+| 38 | 启动自动更新检查 | ✅ | 设置项 `autoCheckUpdates`（默认开启）控制；一次检查 ModelForge 与 llama.cpp，仅在存在可更新项时于页面顶部显示横幅（组件、当前→最新版本、通道、资产大小），并提供“更新”按钮触发对应流程（应用：下载→应用脚本；llama.cpp：官方资产下载安装，横幅内显示进度）。离线/限流/失败/已是最新均静默且不阻断启动；结果按浏览器会话缓存 10 分钟，关闭横幅仅本次会话有效。通道沿用 `updateChannel` 与 `llamaChannel`。 |
+
 ### 架构兼容性诊断
 
 | 模型 | 结论 |

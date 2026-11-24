@@ -87,6 +87,25 @@ Web UI 支持：全选、反选、仅权重、按类型筛选、文件名搜索�
 
 多分片模型按仓库真实路径逐个下载，索引文件（`model.safetensors.index.json`）作为普通文件处理，不遗漏、不重命名。下载完成后由现有 `ModelScanner` 检查分片完整性。
 
+## 4.1 数据集仓库
+
+`HfClient::parseRepositoryInput` 识别 `datasets` / `spaces` / `models` 路径前缀，
+`resolve` 的第五个参数 `repoType` 为空时采用 URL 自动判断结果，否则由调用方显式
+指定（`model` / `dataset`）。数据集分支：
+
+| 项目 | 模型仓库 | 数据集仓库 |
+| --- | --- | --- |
+| 元数据接口 | `/api/models/{repo}` | `/api/datasets/{repo}` |
+| 文件树 | `/api/models/{repo}/tree/{rev}` | `/api/datasets/{repo}/tree/{rev}` |
+| 下载地址 | `/{repo}/resolve/{rev}/{path}` | `/datasets/{repo}/resolve/{rev}/{path}` |
+| 分类 | safetensors/pytorch/gguf/config/tokenizer/vocab/index/readme/other | parquet/arrow/csv/jsonl/json/text/image/audio/video/archive/tensor/readme/config/other |
+| 默认目录 | `defaultModelDir` | `datasetsDir` |
+| 完成后 | 按 config.json + safetensors 或 GGUF 自动导入模型库 | 写入 `offline_resources`（type=dataset），不进入模型库 |
+
+`download_tasks.repo_type` 决定每个文件使用哪个 resolve 前缀，因此暂停/继续/重试
+与重启恢复都沿用同一类型。数据集任务在 `result` 中返回 `kind=dataset`、`path`、
+`fileCount`、`totalBytes`、`indexed`。
+
 ## 5. 下载引擎
 
 ### 5.1 并发

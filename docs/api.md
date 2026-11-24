@@ -554,12 +554,19 @@ POST /huggingface/resolve
 {
   "input": "https://huggingface.co/owner/model/tree/main",
   "revision": "",
+  "repoType": "",        // model | dataset；留空时按 URL 中的 /datasets/ 自动判断
   "token": ""            // 可选，留空使用已保存 Token
 }
 
-GET  /huggingface/repository?repo=owner/model&revision=main
-GET  /huggingface/files?repo=owner/model&revision=main
+GET  /huggingface/repository?repo=owner/model&revision=main&repoType=model
+GET  /huggingface/files?repo=owner/model&revision=main&repoType=model
 ```
+
+`repoType=dataset` 时使用 `https://huggingface.co/api/datasets/...` 与
+`https://huggingface.co/datasets/<repo>/resolve/...`，文件 `category` 取值为
+`parquet`、`arrow`、`csv`、`jsonl`、`json`、`text`、`image`、`audio`、`video`、
+`archive`、`tensor`、`readme`、`config`、`other`。传入
+`https://huggingface.co/datasets/owner/name` 时无需显式指定 `repoType`。
 
 返回：`repoId`、`author`、`name`、`revision`、`commitHash`、`license`、`gated`、`private`、`fileCount`、`totalSize`、`files[]`（`path`、`size`、`category`、`sha256`、`lfs`）。
 
@@ -581,6 +588,7 @@ Token 不会出现在任何响应正文、日志或 URL 中，只返回掩码。
 POST   /downloads
 {
   "repoId": "owner/model",
+  "repoType": "model",           // model | dataset；dataset 下载后登记离线资源库
   "revision": "main",
   "commitHash": "9fb1912...",
   "destination": "C:/models/model",
@@ -924,6 +932,38 @@ URL：`ws://127.0.0.1:8081/ws`（HTTP 端口 + 1）
 `ASSET_NOT_FOUND`（当前平台无匹配资产）。这些状态以 HTTP 200 返回，由
 `code` 区分，前端据此给出对应提示。
 
+### GET /updates/startup?force=0
+
+启动自动检查：一次返回 ModelForge 与 llama.cpp 的可更新项，供前端顶部横幅使用。
+受设置项 `autoCheckUpdates` 控制；关闭时立即返回 `{"enabled": false}`，不发起任何
+网络请求。
+
+```json
+{
+  "enabled": true,
+  "channel": "stable",
+  "llamaChannel": "stable",
+  "checkedAt": "2026-11-24T11:23:06.371",
+  "available": 1,
+  "items": [
+    { "component": "llama", "name": "llama.cpp",
+      "currentVersion": "b12532", "latestVersion": "b12669",
+      "channel": "stable", "prerelease": true,
+      "releaseName": "b12669", "publishedAt": "2026-11-24T02:38:41Z",
+      "htmlUrl": "https://github.com/ggml-org/llama.cpp/releases/tag/b12669",
+      "tag": "b12669", "assetName": "llama-b12669-bin-win-vulkan-x64.zip",
+      "assetSize": 39034012, "message": "发现新版本 b12669（本地 b12532）。" }
+  ],
+  "failures": []
+}
+```
+
+`component` 为 `application`（ModelForge）或 `llama`。仅在真正存在更新时写入
+`items`；网络失败、限流、无匹配资产、已是最新版本等都会出现在 `failures` 或
+直接省略，接口始终返回 200，不会阻断启动。`force=1` 绕过 llama.cpp 的 10 分钟
+检查缓存。应用更新沿用 `POST /updates/download` + `POST /updates/apply`；
+llama.cpp 更新沿用 `POST /llama/install`（取 `tag` 与 `assetName`）。
+
 ### POST /updates/download
 
 请求体可为 `{}`。须先调用 check 且 `updateAvailable` 为 true；否则返回 409
@@ -944,3 +984,99 @@ URL：`ws://127.0.0.1:8081/ws`（HTTP 端口 + 1）
 `applied`。安装脚本在进程退出后替换文件并重启：Windows 使用
 `apply-update.bat`，POSIX 使用 `apply-update.sh`。启动失败返回 500
 `APPLY_FAILED`。
+
+
+## 18. 多后端与离线资源库
+
+### 18.1 llama.cpp 多后端并存
+
+```text
+GET    /llama/backends                        -> { items[], count, activeId, activeTag, releasesDir }
+POST   /llama/backends/refresh                -> 重新扫描 releases/ 目录并重建 backends.json
+POST   /llama/backends/{id}/activate          -> 切换后端：改写工具路径与 modelforge-runtime.json
+DELETE /llama/backends/{id}                   -> 删除非当前后端目录（当前后端返回 409）
+```
+
+`id` 是发行目录名（例如 `llama-b12532-bin-win-cuda-x64`）。条目字段：
+`id`、`tag`、`asset`、`backend`、`backendLabel`、`releaseDir`、`sha256`、`size`、
+`installedAt`、`active`、`present`、`usable`、`cliPath`、`quantizePath`。
+当前后端不可删除，且至少保留一个可用后端。
+
+### 18.2 离线资源库
+
+资源类型：`model`（models 表中的本地模型）、`dataset`（数据集目录）、
+`backend`（已安装 llama.cpp 后端）。
+
+```text
+GET    /library?type=all&q=&limit=200        -> { items[], stats }
+GET    /library/stats                        -> { total, bytes, byType, missing, datasetsDir, modelsDir }
+POST   /library/rescan   { "prune": true }   -> 重新索引；prune 移除文件已消失的条目
+POST   /library/verify                       -> { checked, missing[], sizeDrift[], healthy }
+GET    /library/bundles?limit=30             -> 导入/导出历史
+DELETE /library/{id}                         -> 仅移除索引，磁盘文件保留
+
+POST   /library/export
+{
+  "destination": "D:/offline-bundle",
+  "name": "ModelForge 离线资源包",
+  "types": ["model", "dataset", "backend"],   // 可省略 = 全部
+  "ids": [],                                  // 可选，精确选择
+  "copy": true,                               // false 时只写清单
+  "includeSha256": true
+}
+
+POST   /library/import
+{
+  "manifestPath": "D:/offline-bundle",        // 目录或 modelforge-offline-bundle.json
+  "basePath": "",                             // 资源被移动到别处时指定根目录
+  "verifySha256": false
+}
+```
+
+导出产物：`modelforge-offline-bundle.json`（`format` 为
+`modelforge-offline-bundle-v1`，含 `items[]` 的 `sourcePath`、`relativePath`、
+`size`、`fileCount`、`sha256`）与 `SHA256SUMS.txt`。导出目录不能位于任一资源
+目录内部（否则返回 `UNSAFE_DESTINATION`）。导入时按 `basePath` →
+`<manifest>/files/<relativePath>` → `sourcePath` 顺序解析文件，缺失与校验失败
+分别列入 `missing` 与 `mismatched`。`forget`（DELETE）不删除文件。
+
+## 19. 依赖健康自检
+
+```text
+GET  /health/check?deep=1&network=1
+POST /health/check { "deep": false, "network": false }
+GET  /health/summary
+POST /health/fix { "action": "ensure_dirs" }
+```
+
+`GET /health/check` 默认完全离线：`network=1` 才会调用 Hugging Face
+`whoami-v2` 校验 Token；`deep=1` 会重新探测工具版本（较慢）。
+
+返回结构：
+
+```json
+{
+  "status": "ok | warn | error",
+  "checkedAt": "2026-11-24T10:33:02.123",
+  "elapsedMs": 78,
+  "summary": { "total": 19, "ok": 18, "warn": 1, "error": 0 },
+  "items": [
+    { "id": "database", "category": "database", "title": "SQLite 数据库",
+      "status": "ok", "detail": "完整性检查通过（PRAGMA quick_check）",
+      "hint": "", "fix": "", "fixable": false }
+  ],
+  "environment": { "os": "...", "host": "...", "version": "1.0.1",
+                   "memoryTotal": 0, "memoryAvailable": 0 }
+}
+```
+
+检查项 `id`：`database`、`database-write`、`dir-models`、`dir-datasets`、
+`dir-output`、`dir-temp`、`dir-data`、`disk-space`、`python`、`python-deps`、
+`convert-script`、`llama-backends`、`tool-quantize`、`tool-cli`、`tool-server`、
+`tool-bench`、`tool-ppl`、`offline-library`、`settings-network`、`web-root`、
+可选 `hf-token`、`hf-network`。
+
+`POST /health/fix` 只接受白名单动作：`ensure_dirs`（创建缺失目录）、
+`repair_tools`（重新检测工具路径）、`refresh_backends`（重扫后端）、
+`rescan_library`（重建资源索引）。返回 `{ action, message, item, report }`，
+`report` 为修复后的完整自检结果；未知动作返回 400 `FIX_FAILED`。

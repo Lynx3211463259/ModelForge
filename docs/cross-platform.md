@@ -245,3 +245,29 @@ unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
   不会阻塞 HTTP 请求。
 - iOS 无分发产物，更新入口只用于说明；源码保持同一套可编译逻辑，仅做
   `-fsyntax-only` 校验。
+
+## 10. 数据集、多后端、离线库与自检的跨平台说明
+
+新增模块不引入平台专属 API，全部通过既有抽象实现：
+
+| 能力 | 实现方式 | Windows | Linux / openEuler | macOS | Android |
+| --- | --- | --- | --- | --- | --- |
+| 数据集下载 | `HfClient` 仅切换 URL 前缀；落盘走 `ghc::filesystem` | ✅ | ✅ | ✅ | 交叉编译通过 |
+| 多后端识别 | 目录名 + `.dll` / `.so` / `.dylib` 探测 | ✅ | ✅ | ✅ | 交叉编译通过 |
+| 后端切换 | 复用 `SettingsService::update` 与 `modelforge-runtime.json` | ✅ | ✅ | ✅ | 交叉编译通过 |
+| 离线资源库 | SQLite + `ghc::filesystem` + `sha256File` | ✅ | ✅ | ✅ | 交叉编译通过 |
+| 离线包导出/导入 | `copy_file` / 递归枚举，路径统一 `pathToUtf8` | ✅ | ✅ | ✅ | 交叉编译通过 |
+| 依赖自检 | `diskFreeBytes`、`directoryWritable`、`checkTcpPort` 等既有跨平台工具 | ✅ | ✅ | ✅ | 交叉编译通过 |
+
+需要注意的平台差异：
+
+- **路径分隔符**：离线清单记录 `sourcePath` 的绝对路径（Windows 为反斜杠），
+  导入到其他平台时必须填写 `basePath` 或使用 `copy=true` 的资源包（清单内使用
+  `/` 分隔的 `relativePath`）。
+- **校验和**：`SHA256SUMS.txt` 使用相对路径，跨平台可复用。
+- **后端资产**：官方 release 在 Linux/macOS 为 `.tar.gz`，目录内为 `.so` / `.dylib`；
+  `backendFromDir` 已覆盖这两类文件名，静态构建则按资产名（含 `-cuda` 等）回退判断。
+- **健康自检**：`web-root` 检查依赖发行包中 `frontend/dist` 的位置；服务化部署
+  （systemd/launchd）时若静态目录不同，需在设置中修正。
+- Android / iOS 仍只做源码层面的语法与交叉编译校验，未实机验证上述页面与文件
+  选择器行为。

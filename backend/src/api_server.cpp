@@ -52,10 +52,10 @@ json taskForId(TaskManager& tasks, const std::string& id) {
 ApiServer::ApiServer(SettingsService& settings, ConverterService& converter, TaskManager& tasks,
                      SystemService& system, DownloadManager& downloads, LlamaRuntimeService& llama,
                      QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws,
-                     UpdateService& update)
+                     UpdateService& update, OfflineLibrary& library, HealthCheckService& health)
     : settings_(settings), converter_(converter), tasks_(tasks), system_(system), downloads_(downloads),
       llama_(llama), quality_(quality), watch_(watch), events_(events), ws_(ws), update_(update),
-      server_(new httplib::Server()),
+      library_(library), health_(health), server_(new httplib::Server()),
       routes_(new OpenApiRegistry(*server_)) {}
 
 ApiServer::~ApiServer() { stop(); }
@@ -139,6 +139,8 @@ void ApiServer::registerRoutes() {
     registerQualityRoutes();
     registerWatchRoutes();
     registerUpdateRoutes();
+    registerOfflineRoutes();
+    registerHealthRoutes();
 
     routes_->Get("/api/v1/openapi.json", [this](const httplib::Request&, httplib::Response& res) {
         // Generated from the routes registered in this build, so the document always
@@ -786,6 +788,7 @@ void ApiServer::registerDownloadRoutes() {
         if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
         DownloadRequest request;
         request.repoId = body.value("repoId", body.value("repo", ""));
+        request.repoType = HfClient::normalizeRepoType(body.value("repoType", body.value("kind", "model")));
         request.revision = body.value("revision", "main");
         request.commitHash = body.value("commitHash", "");
         request.destination = body.value("destination", body.value("outputDir", ""));
@@ -886,7 +889,8 @@ void ApiServer::registerHuggingFaceRoutes() {
         if (trim(input).empty()) return fail(res, "INVALID_REPOSITORY", "请输入 Hugging Face 仓库地址或 ID", 400);
         std::string token = body.value("token", "");
         if (token.empty()) token = downloads_.token();
-        const HfResolveResult result = HfClient::resolve(input, body.value("revision", ""), token, 30000);
+        const std::string requestedType = body.value("repoType", body.value("kind", ""));
+        const HfResolveResult result = HfClient::resolve(input, body.value("revision", ""), token, 30000, requestedType);
         if (!result.ok) {
             return fail(res, result.code, result.error, statusFor(result.code), result.suggestion);
         }
@@ -901,7 +905,8 @@ void ApiServer::registerHuggingFaceRoutes() {
     routes_->Get("/api/v1/huggingface/repository", [this, statusFor](const httplib::Request& req, httplib::Response& res) {
         const std::string repo = queryValue(req, "repo");
         if (repo.empty()) return fail(res, "INVALID_REPOSITORY", "缺少 repo 参数", 400);
-        const HfResolveResult result = HfClient::resolve(repo, queryValue(req, "revision", "main"), downloads_.token(), 30000);
+        const HfResolveResult result = HfClient::resolve(repo, queryValue(req, "revision", "main"), downloads_.token(), 30000,
+                                                         queryValue(req, "repoType", queryValue(req, "kind", "")));
         if (!result.ok) return fail(res, result.code, result.error, statusFor(result.code), result.suggestion);
         ok(res, result.repository.toJson());
     });
@@ -909,7 +914,8 @@ void ApiServer::registerHuggingFaceRoutes() {
     routes_->Get("/api/v1/huggingface/files", [this, statusFor](const httplib::Request& req, httplib::Response& res) {
         const std::string repo = queryValue(req, "repo");
         if (repo.empty()) return fail(res, "INVALID_REPOSITORY", "缺少 repo 参数", 400);
-        const HfResolveResult result = HfClient::resolve(repo, queryValue(req, "revision", "main"), downloads_.token(), 30000);
+        const HfResolveResult result = HfClient::resolve(repo, queryValue(req, "revision", "main"), downloads_.token(), 30000,
+                                                         queryValue(req, "repoType", queryValue(req, "kind", "")));
         if (!result.ok) return fail(res, result.code, result.error, statusFor(result.code), result.suggestion);
         json files = json::array();
         for (const auto& file : result.repository.files) {
@@ -1008,6 +1014,29 @@ void ApiServer::registerLlamaRoutes() {
         settings_.load();
         if (!error.empty()) return fail(res, "REFRESH_FAILED", error, 500);
         ok(res, llama_.status());
+    });
+
+    // ---- Multiple co-installed llama.cpp backends ----
+    routes_->Get("/api/v1/llama/backends", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, llama_.backends());
+    });
+
+    routes_->Post("/api/v1/llama/backends/refresh", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, llama_.refreshBackends());
+    });
+
+    routes_->Post(R"(/api/v1/llama/backends/([^/]+)/activate)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string error;
+        if (!llama_.activateBackend(idParam(req), error)) return fail(res, "BACKEND_ACTIVATE_FAILED", error, 400);
+        ok(res, json{{"activated", idParam(req)}, {"status", llama_.status()}, {"backends", llama_.backends()}});
+    });
+
+    routes_->Delete(R"(/api/v1/llama/backends/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string error;
+        if (!llama_.removeBackend(idParam(req), error)) {
+            return fail(res, "BACKEND_REMOVE_FAILED", error, 409, "先启用另一个后端，再删除当前后端。");
+        }
+        ok(res, json{{"removed", true}, {"backends", llama_.backends()}});
     });
 }
 
@@ -1122,6 +1151,67 @@ void ApiServer::registerUpdateRoutes() {
         ok(res, update_.check(settings_.get().updateChannel).toJson());
     });
 
+    // Startup check: never blocks or fails the boot. Returns only actionable
+    // updates; offline/rate-limited/up-to-date outcomes are reported as failures
+    // or omitted so the UI shows no banner.
+    routes_->Get("/api/v1/updates/startup", [this](const httplib::Request& req, httplib::Response& res) {
+        const AppSettings s = settings_.get();
+        json out{{"enabled", s.autoCheckUpdates},
+                 {"channel", s.updateChannel},
+                 {"llamaChannel", s.llamaChannel},
+                 {"checkedAt", isoNow()},
+                 {"items", json::array()},
+                 {"failures", json::array()}};
+        if (!s.autoCheckUpdates) return ok(res, out);
+        const bool force = queryValue(req, "force", "0") == "1" || queryValue(req, "force", "") == "true";
+
+        const UpdateInfo app = update_.check(s.updateChannel);
+        if (app.updateAvailable) {
+            out["items"].push_back(json{{"component", "application"},
+                                        {"name", "ModelForge"},
+                                        {"currentVersion", app.currentVersion},
+                                        {"latestVersion", app.latestVersion},
+                                        {"channel", app.channel},
+                                        {"prerelease", app.prerelease},
+                                        {"releaseName", app.releaseName},
+                                        {"publishedAt", app.publishedAt},
+                                        {"htmlUrl", app.htmlUrl},
+                                        {"assetName", app.assetName},
+                                        {"assetSize", app.assetSize},
+                                        {"message", app.message}});
+        } else if (app.code != "UP_TO_DATE" && app.code != "UPDATE_AVAILABLE") {
+            out["failures"].push_back(json{{"component", "application"}, {"code", app.code},
+                                          {"message", app.message}});
+        }
+
+        const LlamaCheckResult llama = llama_.checkUpdate(force);
+        if (!llama.ok) {
+            out["failures"].push_back(json{{"component", "llama"}, {"code", llama.code}, {"message", llama.error}});
+        } else {
+            const std::string status = llama.data.value("status", "");
+            if (status == "update_available") {
+                const json& local = llama.data["local"];
+                const json& asset = llama.data["asset"];
+                const json& release = llama.data["release"];
+                out["items"].push_back(json{{"component", "llama"},
+                                            {"name", "llama.cpp"},
+                                            {"currentVersion", local.value("tag", "")},
+                                            {"latestVersion", llama.data.value("remoteTag", "")},
+                                            {"channel", s.llamaChannel},
+                                            {"prerelease", release.value("prerelease", false)},
+                                            {"releaseName", release.value("name", "")},
+                                            {"publishedAt", release.value("publishedAt", "")},
+                                            {"htmlUrl", release.value("htmlUrl", "")},
+                                            {"tag", llama.data.value("remoteTag", "")},
+                                            {"assetName", asset.value("name", "")},
+                                            {"assetSize", asset.value("size", 0ull)},
+                                            {"message", llama.data.value("message", "")}});
+            }
+        }
+        out["available"] = out["items"].size();
+        ok(res, out);
+    });
+
     routes_->Post("/api/v1/updates/download", [this](const httplib::Request&, httplib::Response& res) {
         std::string code;
         std::string message;
@@ -1164,6 +1254,99 @@ void ApiServer::registerUpdateRoutes() {
             return;
         }
         ok(res, json{{"message", message}, {"scriptPath", scriptPath}});
+    });
+}
+
+void ApiServer::registerOfflineRoutes() {
+    routes_->Get("/api/v1/library", [this](const httplib::Request& req, httplib::Response& res) {
+        ok(res, library_.list(queryValue(req, "type", "all"), queryValue(req, "q", ""),
+                              intQuery(req, "limit", 200)));
+    });
+
+    routes_->Get("/api/v1/library/stats", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, library_.stats());
+    });
+
+    routes_->Post("/api/v1/library/rescan", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
+        const bool prune = body.value("prune", true);
+        ok(res, library_.rescan(prune));
+    });
+
+    routes_->Post("/api/v1/library/export", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
+        std::string code;
+        const json result = library_.exportBundle(body, code, error);
+        if (!error.empty() && result.empty()) {
+            const int status = code == "NO_RESOURCES" ? 404 : (code == "DESTINATION_NOT_WRITABLE" ? 403 : 400);
+            return fail(res, code.empty() ? "EXPORT_FAILED" : code, error, status);
+        }
+        ok(res, result);
+    });
+
+    routes_->Post("/api/v1/library/import", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
+        std::string code;
+        const std::string manifest = body.value("manifestPath", body.value("manifest", ""));
+        const json result = library_.importBundle(manifest, body, code, error);
+        if (!error.empty() && result.value("importedCount", 0) == 0) {
+            const int status = code == "MANIFEST_NOT_FOUND" ? 404 : 400;
+            return fail(res, code.empty() ? "IMPORT_FAILED" : code, error, status);
+        }
+        ok(res, result);
+    });
+
+    routes_->Get("/api/v1/library/bundles", [this](const httplib::Request& req, httplib::Response& res) {
+        ok(res, library_.bundles(intQuery(req, "limit", 30)));
+    });
+
+    routes_->Post("/api/v1/library/verify", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, library_.verifyAll());
+    });
+
+    routes_->Delete(R"(/api/v1/library/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string error;
+        if (!library_.forget(idParam(req), error)) return fail(res, "RESOURCE_NOT_FOUND", error, 404);
+        ok(res, json{{"removed", true}, {"filesKept", true}});
+    });
+}
+
+void ApiServer::registerHealthRoutes() {
+    auto runCheck = [this](bool deep, bool network) { return health_.run(deep, network); };
+
+    routes_->Get("/api/v1/health/check", [this, runCheck](const httplib::Request& req, httplib::Response& res) {
+        const bool deep = queryValue(req, "deep", "0") == "1" || queryValue(req, "deep", "") == "true";
+        const bool network = queryValue(req, "network", "0") == "1" || queryValue(req, "network", "") == "true";
+        ok(res, runCheck(deep, network));
+    });
+
+    routes_->Post("/api/v1/health/check", [this, runCheck](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
+        ok(res, runCheck(body.value("deep", false), body.value("network", false)));
+    });
+
+    routes_->Get("/api/v1/health/summary", [this](const httplib::Request&, httplib::Response& res) {
+        ok(res, health_.summary());
+    });
+
+    routes_->Post("/api/v1/health/fix", [this](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        std::string error;
+        if (!readJson(req, body, error)) return fail(res, "INVALID_JSON", error, 400);
+        const std::string action = body.value("action", body.value("id", ""));
+        if (action.empty()) return fail(res, "INVALID_REQUEST", "缺少修复动作", 400);
+        std::string fixError;
+        const json result = health_.fix(action, fixError);
+        if (!fixError.empty() && result.empty()) return fail(res, "FIX_FAILED", fixError, 400);
+        ok(res, result);
     });
 }
 

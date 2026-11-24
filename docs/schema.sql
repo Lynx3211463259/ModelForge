@@ -303,3 +303,43 @@ CREATE TABLE IF NOT EXISTS download_settings (
 INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'));
 
 INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
+
+-- ---------------------------------------------------------------------------
+-- 3 号迁移（附加）：下载任务记录资源类型；离线资源库与离线包历史。
+-- SQLite 不支持 ADD COLUMN IF NOT EXISTS，database.cpp 会在启动时检查
+-- PRAGMA table_info(download_tasks) 后执行：
+--   ALTER TABLE download_tasks ADD COLUMN repo_type TEXT NOT NULL DEFAULT 'model';
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS offline_resources (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,                 -- model | dataset | backend | other
+  name TEXT NOT NULL,
+  version TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL,
+  size INTEGER DEFAULT 0,
+  file_count INTEGER DEFAULT 0,
+  sha256 TEXT DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',    -- local | huggingface | llama.cpp | bundle
+  repo_id TEXT NOT NULL DEFAULT '',
+  revision TEXT NOT NULL DEFAULT '',
+  meta_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_offline_type ON offline_resources(type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_offline_path ON offline_resources(path);
+
+CREATE TABLE IF NOT EXISTS offline_bundles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  root TEXT NOT NULL,
+  manifest_path TEXT NOT NULL,
+  item_count INTEGER DEFAULT 0,
+  total_size INTEGER DEFAULT 0,
+  direction TEXT NOT NULL DEFAULT 'export',   -- export | import
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_offline_bundles_created ON offline_bundles(created_at DESC);
+
+INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'));

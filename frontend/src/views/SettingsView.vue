@@ -31,7 +31,7 @@ let versionPoll: number | undefined
 
 const dirPickerOpen = ref(false)
 const dirPickerInitial = ref('')
-const dirPickerTarget = ref<'' | 'llamaRoot' | 'defaultModelDir' | 'defaultOutputDir' | 'tempDir'>('')
+const dirPickerTarget = ref<'' | 'llamaRoot' | 'defaultModelDir' | 'datasetsDir' | 'defaultOutputDir' | 'tempDir'>('')
 
 function openDirPicker(target: typeof dirPickerTarget.value) {
   if (!form.value || !target) return
@@ -145,6 +145,20 @@ async function importSettings(event: Event) {
     app.fromError(error, t('导入设置失败'))
   } finally {
     ;(event.target as HTMLInputElement).value = ''
+  }
+}
+
+async function onAutoCheckChange(value: boolean) {
+  if (!form.value) return
+  form.value.autoCheckUpdates = value
+  try {
+    const result = await api.put<{ settings: Settings; restartRequired: boolean }>('/api/v1/settings', { autoCheckUpdates: value })
+    form.value = result.settings
+    app.settings = result.settings
+    app.toast('success', t('{0}', [value ? t('启动时自动检查更新已开启') : t('启动时自动检查更新已关闭')]))
+  } catch (error) {
+    form.value.autoCheckUpdates = !value
+    app.fromError(error, t('保存设置失败'))
   }
 }
 
@@ -362,6 +376,14 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
               </div>
             </div>
             <div class="field">
+              <label class="field-label">{{ t('数据集目录') }}</label>
+              <div class="input-with-button">
+                <input v-model="form.datasetsDir" class="input mono" />
+                <button class="btn btn-sm" @click="openDirPicker('datasetsDir')"><Icon name="folder" :size="12" /> {{ t('浏览') }}</button>
+              </div>
+              <div class="field-hint">{{ t('Hugging Face 数据集下载与离线资源库扫描的默认根目录，与模型权重分开存放。') }}</div>
+            </div>
+            <div class="field">
               <label class="field-label">{{ t('默认输出目录') }}</label>
               <div class="input-with-button">
                 <input v-model="form.defaultOutputDir" class="input mono" />
@@ -448,6 +470,13 @@ onMounted(async () => { await app.init(); await refreshVersion(); await load() }
             <option value="auto">{{ t('自动（最新可安装构建）') }}</option>
           </select>
           <div class="field-hint">{{ t('稳定版只接收正式发布；每日构建优先预发布；自动取版本号最高的构建。') }}</div>
+        </div>
+        <div class="field" style="max-width: 640px; margin-bottom: 12px">
+          <label class="check">
+            <input type="checkbox" :checked="form?.autoCheckUpdates !== false" @change="onAutoCheckChange(($event.target as HTMLInputElement).checked)" />
+            <span>{{ t('启动时自动检查更新') }}<small>{{ t('同时检查 ModelForge 与 llama.cpp；发现新版本时在界面顶部显示横幅。检查失败、离线或已是最新版本时不影响启动，也不显示横幅。') }}</small></span>
+          </label>
+          <div class="field-hint">{{ t('ModelForge 使用上方更新通道；llama.cpp 的通道在“运行引擎”页设置。') }}</div>
         </div>
         <div v-if="!updateInfo" class="setting-group-copy">{{ t('点击“检查更新”从 GitHub 获取最新版本信息。') }}</div>
         <div v-else-if="updateInfo.code === 'UP_TO_DATE'" class="notice">

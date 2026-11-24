@@ -6,7 +6,9 @@
 #include "modelforge/database.hpp"
 #include "modelforge/download_manager.hpp"
 #include "modelforge/event_hub.hpp"
+#include "modelforge/health_check.hpp"
 #include "modelforge/llama_runtime.hpp"
+#include "modelforge/offline_library.hpp"
 #include "modelforge/quality_service.hpp"
 #include "modelforge/settings.hpp"
 #include "modelforge/system_service.hpp"
@@ -56,6 +58,8 @@ private:
     std::unique_ptr<LlamaRuntimeService> llama_;
     std::unique_ptr<QualityService> quality_;
     std::unique_ptr<WatchService> watch_;
+    std::unique_ptr<OfflineLibrary> library_;
+    std::unique_ptr<HealthCheckService> health_;
     std::unique_ptr<WsServer> ws_;
     std::unique_ptr<ApiServer> api_;
     std::unique_ptr<UpdateService> update_;

@@ -26,6 +26,8 @@ public:
     fs::path tempDir() const;
     fs::path outputDir() const;
     fs::path modelsDir() const;
+    // Default root for Hugging Face dataset downloads and the offline library.
+    fs::path datasetsDir() const;
     void save();
 
 private:

@@ -107,6 +107,7 @@ bool App::initialize(std::string& error) {
     fs::create_directories(dataDir / "logs", ec);
     fs::create_directories(dataDir / "reports", ec);
     fs::create_directories(runtimeBase / "models", ec);
+    fs::create_directories(runtimeBase / "datasets", ec);
     fs::create_directories(runtimeBase / "output", ec);
     fs::create_directories(runtimeBase / "temp", ec);
     Logger::instance().setLogDirectory(dataDir / "logs");
@@ -124,10 +125,13 @@ bool App::initialize(std::string& error) {
     llama_.reset(new LlamaRuntimeService(*settings_));
     quality_.reset(new QualityService(*db_, *settings_, *system_, *events_));
     watch_.reset(new WatchService(*db_, *settings_, *system_, *tasks_, *events_));
+    library_.reset(new OfflineLibrary(*db_, *settings_, *llama_));
+    health_.reset(new HealthCheckService(*db_, *settings_, *converter_, *llama_, *library_,
+                                        [this] { return downloads_->token(); }));
     ws_.reset(new WsServer());
     update_.reset(new UpdateService(runtimeBase, runtimeBase / "temp"));
     api_.reset(new ApiServer(*settings_, *converter_, *tasks_, *system_, *downloads_, *llama_, *quality_, *watch_,
-                             *events_, *ws_, *update_));
+                             *events_, *ws_, *update_, *library_, *health_));
     initialized_ = true;
     Logger::instance().info("ModelForge " + std::string(MODELEFORGE_VERSION) + " initialized at " + pathToUtf8(options_.root));
     Logger::instance().info("Runtime data directory: " + pathToUtf8(runtimeBase));

@@ -4,6 +4,62 @@ All notable changes to ModelForge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Startup update check** for both ModelForge and llama.cpp, controlled by the
+  new `autoCheckUpdates` setting (default on) with a switch next to the update
+  channel in Settings. `GET /api/v1/updates/startup` checks both components and
+  returns only actionable updates; the UI shows a top banner with component,
+  current → latest version, channel/badge, asset size and an **Update** button
+  that runs the matching flow (app download → apply, or official llama.cpp
+  asset install with progress). Offline, rate-limited, failed or up-to-date
+  checks never block startup and show no banner. Results are cached for 10
+  minutes per browser session; dismissing the banner lasts for that session.
+
+- Hugging Face **dataset downloads**: `/api/v1/huggingface/resolve` and
+  `/api/v1/downloads` accept `repoType=dataset` (auto-detected from
+  `huggingface.co/datasets/...` URLs). Dataset files are classified as
+  parquet/arrow/csv/jsonl/text/image/audio/video/archive/tensor, land in the
+  new `datasetsDir`, and are registered in the offline library instead of the
+  model table. The download page has a model/dataset switch.
+- **Multiple co-installed llama.cpp backends**: each official release extracts
+  into its own `releases/<asset>` folder and is tracked in `backends.json`.
+  `GET /api/v1/llama/backends`, `POST /api/v1/llama/backends/{id}/activate`,
+  `DELETE /api/v1/llama/backends/{id}` and
+  `POST /api/v1/llama/backends/refresh`. Switching only rewrites tool paths and
+  `modelforge-runtime.json`; the active backend cannot be deleted and the last
+  backend is always kept.
+- **Offline resource library** (`offline_library`): one registry for local
+  models, datasets and llama.cpp backends with on-disk presence/size checks.
+  `GET /api/v1/library`, `POST /api/v1/library/rescan`,
+  `POST /api/v1/library/export`, `POST /api/v1/library/import`,
+  `POST /api/v1/library/verify`, `GET /api/v1/library/bundles` and
+  `DELETE /api/v1/library/{id}` (unregisters only, never deletes files).
+  Bundles contain `modelforge-offline-bundle.json` plus `SHA256SUMS.txt` and can
+  optionally copy every resource file for air-gapped machines.
+- **Dependency health self-check** (`health_check`): database integrity,
+  directory existence/writability, free disk space, Python and conversion
+  dependencies, convert script, every llama.cpp tool, backend inventory,
+  offline-library integrity, listening/web-root settings, and an opt-in network
+  probe for the Hugging Face token. Exposed as `GET|POST
+  /api/v1/health/check`, `GET /api/v1/health/summary` and
+  `POST /api/v1/health/fix` (safe fixes: create dirs, re-detect tool paths,
+  rescan backends, rescan library). New **离线资源库 / Library** and
+  **健康自检 / Health check** pages.
+- `datasetsDir` setting (Settings → 目录与运行) with a graphical picker.
+
+### Changed
+
+- `HfClient::classifyFile()` takes the repository type; dataset repositories use
+  their own category set. `apiModelUrl`/`apiTreeUrl`/`resolveUrl` gained an
+  optional `repoType` argument (default `model`, existing callers unchanged).
+- `download_tasks` gained a `repo_type` column (additive migration).
+- Backend detection now recognises `.so`/`.dylib` names and falls back to the
+  official asset name, so Linux/macOS releases and static builds are classified
+  correctly.
+
 ## [1.0.1] - 2026-11-23
 
 ### Added
@@ -39,11 +95,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reports the actual port, the configured port and the fallback reason, and the
   UI shows a prominent banner for the duration of the fallback.
 
-### Fixed
-
-- Switching the UI language no longer remounts the Settings page with stale
-  server data (the router view is no longer keyed by locale). The selected
-  language is now written explicitly to the form and persisted immediately;
+### Fixed
+
+
+
+- Switching the UI language no longer remounts the Settings page with stale
+
+  server data (the router view is no longer keyed by locale). The selected
+
+  language is now written explicitly to the form and persisted immediately;
+
   reload restores it from the server in both directions.
 
 - Invalid port values are rejected with `400 SETTINGS_INVALID` instead of being

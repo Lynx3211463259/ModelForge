@@ -153,6 +153,7 @@ export interface Settings {
   llamaChannel: string
   llamaRepo: string
   defaultModelDir: string
+  datasetsDir: string
   defaultOutputDir: string
   tempDir: string
   dataDir: string
@@ -166,6 +167,7 @@ export interface Settings {
   theme: string
   language: string
   updateChannel: string
+  autoCheckUpdates: boolean
   folderWatchEnabled: boolean
   watchFolders: string[]
   watchIntervalSec: number

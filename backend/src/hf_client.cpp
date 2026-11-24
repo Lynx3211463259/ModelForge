@@ -56,9 +56,10 @@ std::string textField(const json& object, const char* key) {
     return std::string();
 }
 
-void addFile(std::vector<HfFileEntry>& files, std::set<std::string>& seen, HfFileEntry entry) {
+void addFile(std::vector<HfFileEntry>& files, std::set<std::string>& seen, HfFileEntry entry,
+             const std::string& repoType) {
     if (entry.path.empty() || seen.count(entry.path)) return;
-    entry.category = HfClient::classifyFile(entry.path);
+    entry.category = HfClient::classifyFile(entry.path, repoType);
     seen.insert(entry.path);
     files.push_back(std::move(entry));
 }
@@ -90,7 +91,15 @@ json HfRepository::toJson() const {
 
 bool HfClient::parseRepositoryInput(const std::string& input, const std::string& explicitRevision,
                                    std::string& repoId, std::string& revision, std::string& error) {
+    std::string ignoredType;
+    return parseRepositoryInput(input, explicitRevision, repoId, revision, error, ignoredType);
+}
+
+bool HfClient::parseRepositoryInput(const std::string& input, const std::string& explicitRevision,
+                                   std::string& repoId, std::string& revision, std::string& error,
+                                   std::string& repoType) {
     repoId.clear();
+    repoType = "model";
     revision = explicitRevision.empty() ? "main" : trim(explicitRevision);
     std::string value = trim(input);
     if (value.empty()) {
@@ -129,6 +138,14 @@ bool HfClient::parseRepositoryInput(const std::string& input, const std::string&
             }
         }
         if (!current.empty()) segments.push_back(current);
+    }
+    // https://huggingface.co/datasets/<owner>/<name>, /spaces/, /models/ prefixes.
+    if (!segments.empty()) {
+        const std::string head = toLower(segments[0]);
+        if ((head == "datasets" || head == "spaces" || head == "models") && segments.size() >= 3) {
+            repoType = head == "datasets" ? "dataset" : "model";
+            segments.erase(segments.begin());
+        }
     }
     if (segments.size() < 2) {
         error = "仓库 ID 需要 owner/name 形式，例如 Qwen/Qwen3-0.6B";
@@ -205,22 +222,35 @@ HfTokenInfo HfClient::validateToken(const std::string& token, int timeoutMs) {
     return info;
 }
 
-std::string HfClient::apiModelUrl(const std::string& repoId, const std::string& revision) {
-    return "https://huggingface.co/api/models/" + urlEncodePath(repoId) +
+std::string HfClient::normalizeRepoType(const std::string& value) {
+    const std::string lower = toLower(trim(value));
+    if (lower == "dataset" || lower == "datasets" || lower == "data") return "dataset";
+    return "model";
+}
+
+std::string HfClient::apiModelUrl(const std::string& repoId, const std::string& revision,
+                                  const std::string& repoType) {
+    const std::string prefix = normalizeRepoType(repoType) == "dataset" ? "/api/datasets/" : "/api/models/";
+    return "https://huggingface.co" + prefix + urlEncodePath(repoId) +
            "?revision=" + urlEncodePath(revision) + "&blobs=true";
 }
 
-std::string HfClient::apiTreeUrl(const std::string& repoId, const std::string& revision) {
-    return "https://huggingface.co/api/models/" + urlEncodePath(repoId) + "/tree/" +
+std::string HfClient::apiTreeUrl(const std::string& repoId, const std::string& revision,
+                                 const std::string& repoType) {
+    const std::string prefix = normalizeRepoType(repoType) == "dataset" ? "/api/datasets/" : "/api/models/";
+    return "https://huggingface.co" + prefix + urlEncodePath(repoId) + "/tree/" +
            urlEncodePath(revision) + "?recursive=true&expand=true";
 }
 
-std::string HfClient::resolveUrl(const std::string& repoId, const std::string& revision, const std::string& path) {
-    return "https://huggingface.co/" + urlEncodePath(repoId) + "/resolve/" + urlEncodePath(revision) + "/" +
+std::string HfClient::resolveUrl(const std::string& repoId, const std::string& revision, const std::string& path,
+                                 const std::string& repoType) {
+    const std::string prefix = normalizeRepoType(repoType) == "dataset" ? "/datasets/" : "/";
+    return "https://huggingface.co" + prefix + urlEncodePath(repoId) + "/resolve/" + urlEncodePath(revision) + "/" +
            urlEncodePath(path);
 }
 
-std::string HfClient::classifyFile(const std::string& path) {
+std::string HfClient::classifyFile(const std::string& path, const std::string& repoType) {
+    if (normalizeRepoType(repoType) == "dataset") return classifyDatasetFile(path);
     const std::string lower = toLower(path);
     const std::string name = lower.substr(lower.find_last_of('/') == std::string::npos ? 0 : lower.find_last_of('/') + 1);
     if (endsWith(name, ".safetensors")) return "safetensors";
@@ -234,6 +264,40 @@ std::string HfClient::classifyFile(const std::string& path) {
     if (name.find("index.json") != std::string::npos) return "index";
     if (name == "readme.md" || endsWith(name, ".md")) return "readme";
     return "other";
+}
+
+std::string HfClient::classifyDatasetFile(const std::string& path) {
+    const std::string lower = toLower(path);
+    const size_t slash = lower.find_last_of('/');
+    const std::string name = slash == std::string::npos ? lower : lower.substr(slash + 1);
+    if (name == "readme.md" || endsWith(name, ".md")) return "readme";
+    if (endsWith(name, ".parquet")) return "parquet";
+    if (endsWith(name, ".arrow") || endsWith(name, ".arrow.gz")) return "arrow";
+    if (endsWith(name, ".csv") || endsWith(name, ".tsv")) return "csv";
+    if (endsWith(name, ".jsonl") || endsWith(name, ".jsonlines") || endsWith(name, ".ndjson")) return "jsonl";
+    if (endsWith(name, ".json")) return "json";
+    if (endsWith(name, ".txt") || endsWith(name, ".text") || endsWith(name, ".raw")) return "text";
+    if (endsWith(name, ".png") || endsWith(name, ".jpg") || endsWith(name, ".jpeg") || endsWith(name, ".webp") ||
+        endsWith(name, ".bmp") || endsWith(name, ".gif")) return "image";
+    if (endsWith(name, ".wav") || endsWith(name, ".mp3") || endsWith(name, ".flac") || endsWith(name, ".ogg") ||
+        endsWith(name, ".m4a")) return "audio";
+    if (endsWith(name, ".mp4") || endsWith(name, ".mkv") || endsWith(name, ".webm") || endsWith(name, ".mov")) return "video";
+    if (endsWith(name, ".zip") || endsWith(name, ".tar") || endsWith(name, ".gz") || endsWith(name, ".tgz") ||
+        endsWith(name, ".7z") || endsWith(name, ".bz2") || endsWith(name, ".xz")) return "archive";
+    if (endsWith(name, ".safetensors") || endsWith(name, ".bin") || endsWith(name, ".pt") || endsWith(name, ".pth") ||
+        endsWith(name, ".gguf") || endsWith(name, ".onnx") || endsWith(name, ".npy") || endsWith(name, ".npz") ||
+        endsWith(name, ".pkl") || endsWith(name, ".h5")) return "tensor";
+    if (name.find("index.json") != std::string::npos) return "index";
+    if (endsWith(name, ".py") || endsWith(name, ".ipynb") || endsWith(name, ".yaml") || endsWith(name, ".yml") ||
+        endsWith(name, ".toml") || endsWith(name, ".cfg")) return "config";
+    return "other";
+}
+
+bool HfClient::isDatasetDataFile(const std::string& path) {
+    const std::string category = classifyDatasetFile(path);
+    return category == "parquet" || category == "arrow" || category == "csv" || category == "jsonl" ||
+           category == "json" || category == "text" || category == "image" || category == "audio" ||
+           category == "video" || category == "archive" || category == "tensor";
 }
 
 bool HfClient::isWeightFile(const std::string& path) {
@@ -290,11 +354,13 @@ fs::path HfClient::localPathFor(const fs::path& destination, const std::string& 
 }
 
 HfResolveResult HfClient::resolve(const std::string& input, const std::string& revisionInput, const std::string& token,
-                                  int timeoutMs) {
-    std::string repoId, revision, parseError;
-    if (!parseRepositoryInput(input, revisionInput, repoId, revision, parseError)) {
+                                  int timeoutMs, const std::string& requestedRepoType) {
+    std::string repoId, revision, parseError, detectedType;
+    if (!parseRepositoryInput(input, revisionInput, repoId, revision, parseError, detectedType)) {
         return makeError("INVALID_REPOSITORY", parseError, "使用 owner/name 或完整 Hugging Face 仓库地址。");
     }
+    const std::string repoType = trim(requestedRepoType).empty() ? detectedType : normalizeRepoType(requestedRepoType);
+    const bool isDataset = repoType == "dataset";
 
     HttpRequestOptions options;
     options.connectTimeoutMs = timeoutMs;
@@ -302,7 +368,7 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
     if (!token.empty()) options.headers.push_back({"Authorization", headerToken(token)});
     options.headers.push_back({"Accept", "application/json"});
 
-    HttpResponse response = HttpClient::request(apiModelUrl(repoId, revision), options);
+    HttpResponse response = HttpClient::request(apiModelUrl(repoId, revision, repoType), options);
     if (response.status == 0) {
         return makeError("HF_NETWORK_ERROR", "无法访问 Hugging Face: " + HttpClient::redact(response.error),
                          "检查网络、代理与 DNS 设置，或稍后重试。");
@@ -314,11 +380,13 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
     }
     if (response.status == 403) {
         return makeError("HF_FORBIDDEN", "没有访问权限，或该仓库需要先在网页上接受使用协议（HTTP 403）。",
-                         "先在 huggingface.co 上接受模型许可协议，再使用具备 read 权限的 Token。");
+                         "先在 huggingface.co 上接受" + std::string(isDataset ? "数据集" : "模型") +
+                             "许可协议，再使用具备 read 权限的 Token。");
     }
     if (response.status == 404) {
-        return makeError("HF_REPOSITORY_NOT_FOUND", "仓库不存在或分支/Commit 无效: " + repoId + "@" + revision,
-                         "检查仓库 ID 与 revision 拼写。");
+        return makeError("HF_REPOSITORY_NOT_FOUND",
+                         std::string(isDataset ? "数据集" : "仓库") + "不存在或分支/Commit 无效: " + repoId + "@" + revision,
+                         "检查仓库 ID 与 revision 拼写" + std::string(isDataset ? "，并确认这是 datasets 而非 models 路径。" : "。"));
     }
     if (response.status == 429) {
         return makeError("HF_RATE_LIMITED", "Hugging Face 接口限流（HTTP 429）。",
@@ -344,6 +412,7 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
     result.ok = true;
     HfRepository& repo = result.repository;
     repo.repoId = repoId;
+    repo.repoType = repoType;
     repo.revision = revision;
     repo.commitHash = textField(model, "sha");
     repo.privateRepo = model.value("private", false);
@@ -364,7 +433,7 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
 
     std::set<std::string> seen;
     // The recursive tree endpoint gives accurate sizes and LFS digests for every file.
-    HttpResponse tree = HttpClient::request(apiTreeUrl(repoId, revision), options);
+    HttpResponse tree = HttpClient::request(apiTreeUrl(repoId, revision, repoType), options);
     if (tree.ok) {
         try {
             const json entries = json::parse(tree.body);
@@ -382,7 +451,7 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
                         const std::string oid = textField(lfs, "oid");
                         if (oid.size() == 64) file.sha256 = oid;
                     }
-                    addFile(repo.files, seen, std::move(file));
+                    addFile(repo.files, seen, std::move(file), repoType);
                 }
             }
         } catch (...) {
@@ -402,7 +471,7 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
                 const std::string oid = textField(lfs, "oid");
                 if (oid.size() == 64) file.sha256 = oid;
             }
-            addFile(repo.files, seen, std::move(file));
+            addFile(repo.files, seen, std::move(file), repoType);
         }
     }
     std::sort(repo.files.begin(), repo.files.end(), [](const HfFileEntry& a, const HfFileEntry& b) {
@@ -411,9 +480,11 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
     repo.fileCount = static_cast<int>(repo.files.size());
     repo.totalSize = 0;
     int weightFiles = 0;
+    int dataFiles = 0;
     for (const auto& file : repo.files) {
         repo.totalSize += file.size;
         if (isWeightFile(file.path)) ++weightFiles;
+        if (isDatasetDataFile(file.path)) ++dataFiles;
     }
     if (repo.files.empty()) {
         result.ok = false;
@@ -422,7 +493,11 @@ HfResolveResult HfClient::resolve(const std::string& input, const std::string& r
         result.suggestion = "确认 revision 是否正确。";
         return result;
     }
-    if (weightFiles == 0) {
+    if (isDataset) {
+        if (dataFiles == 0) {
+            result.details = json{{"warning", "数据集中没有常见的 parquet/arrow/csv/jsonl/压缩包文件，可能只是说明或脚本。"}};
+        }
+    } else if (weightFiles == 0) {
         result.details = json{{"warning", "仓库中没有 .safetensors/.bin/.gguf 权重文件，可能只是配置或数据集仓库。"}};
     }
     return result;

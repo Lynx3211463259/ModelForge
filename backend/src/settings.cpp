@@ -46,6 +46,7 @@ AppSettings SettingsService::makeDefaults() const {
     AppSettings s;
     s.dataDir = pathToUtf8(dataOverride_.empty() ? (runtimeRoot_ / "data") : dataOverride_);
     s.defaultModelDir = pathToUtf8(runtimeRoot_ / "models");
+    s.datasetsDir = pathToUtf8(runtimeRoot_ / "datasets");
     s.defaultOutputDir = pathToUtf8(runtimeRoot_ / "output");
     s.tempDir = pathToUtf8(runtimeRoot_ / "temp");
     s.webRoot = detectWebRoot();
@@ -316,5 +317,9 @@ fs::path SettingsService::logsDir() const { return dataDir() / "logs"; }
 fs::path SettingsService::tempDir() const { return pathFromUtf8(settings_.tempDir); }
 fs::path SettingsService::outputDir() const { return pathFromUtf8(settings_.defaultOutputDir); }
 fs::path SettingsService::modelsDir() const { return pathFromUtf8(settings_.defaultModelDir); }
+fs::path SettingsService::datasetsDir() const {
+    if (!settings_.datasetsDir.empty()) return pathFromUtf8(settings_.datasetsDir);
+    return runtimeRoot_ / "datasets";
+}
 
 } // namespace mf

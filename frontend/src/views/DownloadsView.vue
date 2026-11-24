@@ -36,6 +36,7 @@ interface HfRepo {
 interface DownloadTask {
   id: string
   repoId: string
+  repoType?: string
   revision: string
   commitHash: string
   destination: string
@@ -73,6 +74,8 @@ interface DownloadFile {
 const app = useAppStore()
 
 const input = ref('')
+// model | dataset: datasets use the /api/datasets endpoints and land in datasetsDir.
+const kind = ref<'model' | 'dataset'>('model')
 const revision = ref('main')
 const destination = ref('')
 const destinationTouched = ref(false)
@@ -114,6 +117,17 @@ const categoryLabels: Record<string, string> = {
   vocab: t('词表'),
   index: t('分片索引'),
   readme: t('说明'),
+  parquet: 'Parquet',
+  arrow: 'Arrow',
+  csv: 'CSV',
+  jsonl: 'JSON Lines',
+  json: 'JSON',
+  text: t('纯文本'),
+  image: t('图像'),
+  audio: t('音频'),
+  video: t('视频'),
+  archive: t('压缩包'),
+  tensor: t('张量数据'),
   other: t('其他')
 }
 
@@ -236,16 +250,24 @@ async function resolveRepo() {
     const repo = await api.post<HfRepo>('/api/v1/huggingface/resolve', {
       input: input.value.trim(),
       revision: revision.value.trim() || 'main',
+      repoType: kind.value,
       token: tokenInput.value.trim()
     })
     resolved.value = repo
     revision.value = repo.revision
+    const defaultCategories = repo.repoType === 'dataset'
+      ? ['parquet', 'arrow', 'csv', 'jsonl', 'json', 'text', 'image', 'audio', 'video', 'archive', 'tensor']
+      : ['safetensors', 'pytorch', 'gguf', 'config', 'tokenizer', 'vocab', 'index']
     selectedPaths.value = repo.files
-      .filter((file) => ['safetensors', 'pytorch', 'gguf', 'config', 'tokenizer', 'vocab', 'index'].includes(file.category))
+      .filter((file) => defaultCategories.includes(file.category))
       .map((file) => file.path)
     if (!selectedPaths.value.length) selectedPaths.value = repo.files.map((file) => file.path)
     if (!destinationTouched.value || !destination.value) {
-      const base = String(settings.value.defaultDestination || app.settings?.defaultModelDir || '').replace(/\\/g, '/')
+      const base = String(
+        repo.repoType === 'dataset'
+          ? settings.value.datasetDestination || ''
+          : settings.value.defaultDestination || app.settings?.defaultModelDir || ''
+      ).replace(/\\/g, '/')
       destination.value = `${base.replace(/\/$/, '')}/${repo.name}`
       destinationTouched.value = false
     }
@@ -307,6 +329,7 @@ async function startDownload() {
     const repo = resolved.value
     const task = await api.post<DownloadTask>('/api/v1/downloads', {
       repoId: repo.repoId,
+      repoType: repo.repoType || kind.value,
       revision: repo.revision,
       commitHash: repo.commitHash,
       destination: destination.value.trim(),
@@ -499,8 +522,16 @@ onBeforeUnmount(() => {
         </div>
         <div class="card-body">
           <div class="field">
+            <label class="field-label">{{ t('资源类型') }}</label>
+            <div class="segmented">
+              <button class="segmented-item" :class="{ active: kind === 'model' }" @click="kind = 'model'">{{ t('模型') }}</button>
+              <button class="segmented-item" :class="{ active: kind === 'dataset' }" @click="kind = 'dataset'">{{ t('数据集') }}</button>
+            </div>
+            <div class="field-hint">{{ t('数据集使用 Hugging Face datasets API，下载后登记到离线资源库，不会导入模型库。') }}</div>
+          </div>
+          <div class="field">
             <label class="field-label">{{ t('仓库地址 / 仓库 ID') }}</label>
-            <input v-model="input" class="input mono" placeholder="Qwen/Qwen2.5-0.5B-Instruct" @keyup.enter="resolveRepo" />
+            <input v-model="input" class="input mono" :placeholder="kind === 'dataset' ? 'tatsu-lab/alpaca' : 'Qwen/Qwen2.5-0.5B-Instruct'" @keyup.enter="resolveRepo" />
             <div class="field-hint">{{ t('也接受 https://huggingface.co/<owner>/<name> 与 /tree/<revision> 链接。') }}</div>
           </div>
           <div class="field-row">
@@ -526,7 +557,7 @@ onBeforeUnmount(() => {
             <div class="field">
               <label class="field-label">{{ t('下载后') }}</label>
               <label class="check-line"><input v-model="verifyChecksum" type="checkbox" /> {{ t('SHA256 校验') }}</label>
-              <label class="check-line"><input v-model="autoImport" type="checkbox" /> {{ t('自动导入模型库') }}</label>
+              <label class="check-line"><input v-model="autoImport" type="checkbox" /> {{ t('{0}', [kind === 'dataset' ? t('下载后登记离线资源库') : t('自动导入模型库')]) }}</label>
             </div>
           </div>
 
@@ -663,7 +694,9 @@ onBeforeUnmount(() => {
             <tbody>
               <tr v-for="task in tasks" :key="task.id" :class="{ selected: selectedTaskId === task.id }" @click="selectTask(task.id)">
                 <td>
-                  <div class="strong">{{ task.repoId }}<span class="muted mono"> @{{ task.revision }}</span></div>
+                  <div class="strong">{{ task.repoId }}<span class="muted mono"> @{{ task.revision }}</span>
+                    <span v-if="task.repoType === 'dataset'" class="badge no-dot warning" style="margin-left: 6px">{{ t('数据集') }}</span>
+                  </div>
                   <div class="small muted mono">{{ task.id }} · {{ formatTime(task.createdAt) }}</div>
                   <div v-if="task.currentFiles" class="small muted ellipsis">{{ t('正在下载 {0}', [task.currentFiles]) }}</div>
                   <div v-if="task.errorMessage" class="small" style="color: var(--danger)">{{ task.errorMessage }}</div>

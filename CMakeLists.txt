@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MODELEFORGE_VERSION_TEXT)
 string(STRIP "${MODELEFORGE_VERSION_TEXT}" MODELEFORGE_VERSION)
-project(ModelForge VERSION ${MODELEFORGE_VERSION} LANGUAGES C CXX)
+# Pre-release tags such as 1.1.0-beta.1 are valid for packaging and the update
+# checker, but project() only accepts numeric versions. Keep the full string for
+# the compiled-in version and strip the suffix for CMake itself.
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" MODELEFORGE_VERSION_NUMERIC "${MODELEFORGE_VERSION}")
+if(NOT MODELEFORGE_VERSION_NUMERIC)
+  set(MODELEFORGE_VERSION_NUMERIC "0.0.0")
+endif()
+project(ModelForge VERSION ${MODELEFORGE_VERSION_NUMERIC} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +55,8 @@ add_executable(modelforge
   backend/src/hf_client.cpp
   backend/src/download_manager.cpp
   backend/src/llama_runtime.cpp
+  backend/src/offline_library.cpp
+  backend/src/health_check.cpp
   backend/src/quality_service.cpp
   backend/src/watch_service.cpp
   backend/src/update_service.cpp
@@ -63,7 +72,7 @@ target_include_directories(modelforge PRIVATE
 )
 
 target_compile_definitions(modelforge PRIVATE
-  MODELEFORGE_VERSION="${PROJECT_VERSION}"
+  MODELEFORGE_VERSION="${MODELEFORGE_VERSION}"
   CPPHTTPLIB_THREAD_POOL_COUNT=8
   CPPHTTPLIB_RECV_BUFSIZ=32768
 )
@@ -96,7 +105,7 @@ install(TARGETS modelforge RUNTIME DESTINATION bin)
 install(DIRECTORY frontend/dist/ DESTINATION share/modelforge/web OPTIONAL)
 
 enable_testing()
-add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp backend/src/database.cpp backend/src/model_deleter.cpp backend/src/settings.cpp backend/src/types.cpp backend/src/llama_runtime.cpp backend/src/fs_browser.cpp)
+add_executable(modelforge_tests tests/unit/core_tests.cpp backend/src/util.cpp backend/src/crypto.cpp backend/src/http_client.cpp backend/src/hf_client.cpp backend/src/process_runner.cpp backend/src/logger.cpp backend/src/update_service.cpp backend/src/database.cpp backend/src/model_deleter.cpp backend/src/settings.cpp backend/src/types.cpp backend/src/llama_runtime.cpp backend/src/fs_browser.cpp backend/src/offline_library.cpp backend/src/health_check.cpp backend/src/converter.cpp backend/src/model_scanner.cpp backend/src/gguf_reader.cpp)
 target_include_directories(modelforge_tests PRIVATE backend/include backend/third_party)
 if(WIN32)
   target_compile_definitions(modelforge_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0601)
@@ -107,5 +116,5 @@ if(WIN32)
 else()
   target_link_libraries(modelforge_tests PRIVATE sqlite3 Threads::Threads ${CMAKE_DL_LIBS})
 endif()
-target_compile_definitions(modelforge_tests PRIVATE MODELEFORGE_VERSION="${PROJECT_VERSION}" MODELEFORGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(modelforge_tests PRIVATE MODELEFORGE_VERSION="${MODELEFORGE_VERSION}" MODELEFORGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 add_test(NAME core_tests COMMAND modelforge_tests)

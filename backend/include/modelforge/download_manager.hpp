@@ -20,6 +20,9 @@ struct DownloadRequest {
     std::string revision = "main";
     std::string commitHash;
     std::string destination;
+    // "model" (default) or "dataset": datasets use the /api/datasets endpoints and
+    // are registered in the offline resource library instead of the model table.
+    std::string repoType = "model";
     std::vector<std::string> files;
     int concurrency = 4;
     uint64_t maxSpeed = 0;
@@ -49,6 +52,8 @@ public:
 
     json settings();
     bool updateSettings(const json& patch, std::string& error);
+    // Indexes a completed dataset download into the offline resource library.
+    bool registerDataset(const std::string& taskId, std::string& error);
     bool hasToken() const;
     std::string token() const;
     void setToken(const std::string& token, std::string& error);

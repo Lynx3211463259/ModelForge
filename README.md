@@ -69,14 +69,31 @@ actually happened — not at hosted inference services.
 - **SHA256** — streamed, never loading a model into memory at once.
 - **Hugging Face download center** — official API resolution, file filtering,
   concurrent downloads, HTTP Range resume, pause/resume/cancel/retry, SHA256
-  verification, restart recovery and automatic library import.
+  verification, restart recovery and automatic library import. Dataset
+  repositories (`huggingface.co/datasets/...`) are supported too: they use the
+  datasets API, classify parquet/arrow/csv/jsonl files and are registered in the
+  offline library instead of the model table.
 - **llama.cpp runtime** — detects the bundled official release, checks upstream
   updates, downloads CUDA/Vulkan/CPU assets per platform, verifies SHA256 and
   extracts the archive untouched.
+- **Multiple llama.cpp backends side by side** — every official release lives in
+  its own `releases/<asset>` folder; activate or delete backends from the runtime
+  page without re-downloading. Switching only rewrites tool paths.
+- **Offline resource library** — one index for local models, datasets and
+  backends with presence and size checks; export a manifest + SHA256SUMS bundle
+  (optionally copying the files) and import it on an air-gapped machine.
+- **Dependency health self-check** — database integrity, folder permissions,
+  disk space, Python/conversion dependencies, llama.cpp tools, backend
+  inventory, offline-library integrity and listening config, with safe
+  one-click fixes and an opt-in network probe.
+- **Startup update check** — one toggle (on by default) checks both ModelForge
+  and llama.cpp; a top banner with an Update button appears only when something
+  can be updated. Offline, failed and up-to-date checks stay silent and never
+  block startup.
 - **Model library, conversion history, quantization lab, size estimation,
   workflows, settings import/export.**
 - **Web UI** — dark / light / follow-system themes, Simplified Chinese and
-  English, fifteen functional sections, responsive layout.
+  English, seventeen functional sections, responsive layout.
 - **Presets** — built-in read-only presets plus custom presets, applied to the
   conversion form in one click.
 - **PPL evaluation** — runs official `llama-perplexity` on fixed text and

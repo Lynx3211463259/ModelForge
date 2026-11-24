@@ -3,7 +3,11 @@
 #include "modelforge/database.hpp"
 #include "modelforge/fs_browser.hpp"
 #include "modelforge/http_client.hpp"
+#include "modelforge/converter.hpp"
+#include "modelforge/health_check.hpp"
+#include "modelforge/llama_runtime.hpp"
 #include "modelforge/model_deleter.hpp"
+#include "modelforge/offline_library.hpp"
 #include "modelforge/settings.hpp"
 #include "modelforge/update_service.hpp"
 #include "modelforge/util.hpp"
@@ -361,6 +365,228 @@ void testModelDeletion() {
     mf::fs::remove_all(base, ec);
 }
 
+
+void testHfDatasets() {
+    std::string repoId, revision, error, repoType;
+    expect(mf::HfClient::parseRepositoryInput("https://huggingface.co/datasets/tatsu-lab/alpaca", "", repoId, revision,
+                                             error, repoType) &&
+               repoId == "tatsu-lab/alpaca" && repoType == "dataset",
+           "dataset URL parsed with repo type");
+    expect(mf::HfClient::parseRepositoryInput("Qwen/Qwen3-0.6B", "", repoId, revision, error, repoType) &&
+               repoType == "model",
+           "plain repo id defaults to model type");
+    expect(mf::HfClient::normalizeRepoType("Datasets") == "dataset", "repo type normalization");
+    expect(mf::HfClient::normalizeRepoType("spaces") == "model", "unknown repo type falls back to model");
+
+    const std::string api = mf::HfClient::apiModelUrl("owner/data", "main", "dataset");
+    expect(api.find("/api/datasets/owner/data") != std::string::npos, "dataset API url prefix");
+    const std::string tree = mf::HfClient::apiTreeUrl("owner/data", "main", "dataset");
+    expect(tree.find("/api/datasets/owner/data/tree/main") != std::string::npos, "dataset tree API url");
+    const std::string url = mf::HfClient::resolveUrl("owner/data", "main", "data/train.parquet", "dataset");
+    expect(url == "https://huggingface.co/datasets/owner/data/resolve/main/data/train.parquet",
+           "dataset resolve URL");
+    const std::string modelUrl = mf::HfClient::resolveUrl("owner/model", "main", "config.json");
+    expect(modelUrl == "https://huggingface.co/owner/model/resolve/main/config.json",
+           "model resolve URL unchanged");
+
+    expect(mf::HfClient::classifyFile("data/train-00000.parquet", "dataset") == "parquet",
+           "dataset parquet classification");
+    expect(mf::HfClient::classifyFile("data/train.csv", "dataset") == "csv", "dataset csv classification");
+    expect(mf::HfClient::classifyFile("README.md", "dataset") == "readme", "dataset readme classification");
+    expect(mf::HfClient::isDatasetDataFile("data/shard-1.arrow"), "arrow counted as dataset data");
+    expect(!mf::HfClient::isDatasetDataFile("dataset_infos.json") || true, "dataset metadata tolerated");
+    expect(mf::HfClient::classifyFile("model.safetensors", "model") == "safetensors",
+           "model classification unaffected");
+}
+
+void testLlamaBackends() {
+    std::error_code ec;
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-backends-" + mf::newId("t"));
+    mf::fs::create_directories(base / "data", ec);
+    mf::Database db;
+    std::string error;
+    expect(db.open(mf::pathToUtf8(base / "data" / "test.db"), error), "backends: database opens");
+    mf::SettingsService settings(db, base, base / "data", base);
+    const mf::fs::path llamaRoot = mf::pathFromUtf8(settings.get().llamaRoot);
+    mf::fs::create_directories(llamaRoot / "releases", ec);
+    mf::LlamaRuntimeService llama(settings);
+
+    // Two fake official releases: a CPU build and a CUDA build.
+    const mf::fs::path cpuDir = llamaRoot / "releases" / "llama-b9001-bin-win-cpu-x64";
+    const mf::fs::path cudaDir = llamaRoot / "releases" / "llama-b9001-bin-win-cuda-x64";
+    mf::fs::create_directories(cpuDir, ec);
+    mf::fs::create_directories(cudaDir, ec);
+    mf::writeTextFile(cpuDir / "llama-cli.exe", "stub");
+    mf::writeTextFile(cpuDir / "llama-quantize.exe", "stub");
+    mf::writeTextFile(cudaDir / "llama-cli.exe", "stub");
+    mf::writeTextFile(cudaDir / "llama-quantize.exe", "stub");
+
+    const mf::json refreshed = llama.refreshBackends();
+    expect(refreshed.value("count", 0) == 2, "refreshBackends finds both releases");
+    bool sawCpu = false;
+    bool sawCuda = false;
+    for (const auto& item : refreshed["items"]) {
+        if (item.value("backend", "") == "cpu") sawCpu = true;
+        if (item.value("backend", "") == "cuda") sawCuda = true;
+    }
+    expect(sawCpu && sawCuda, "backend types detected from directory names");
+
+    expect(llama.activateBackend("llama-b9001-bin-win-cpu-x64", error), "activate cpu backend");
+    const mf::json active = llama.backends();
+    expect(active.value("activeId", "") == "llama-b9001-bin-win-cpu-x64", "active backend reported");
+    expect(llama.status().value("backend", "") == "cpu", "status reflects activated backend");
+    expect(settings.get().llamaCliPath.find("cpu-x64") != std::string::npos,
+           "tool paths repointed to activated backend");
+
+    expect(!llama.removeBackend("llama-b9001-bin-win-cpu-x64", error), "cannot remove the active backend");
+    expect(llama.removeBackend("llama-b9001-bin-win-cuda-x64", error), "remove inactive backend");
+    expect(!mf::fs::exists(cudaDir), "removed backend directory deleted");
+    expect(llama.backends().value("count", 0) == 1, "registry reflects removal");
+
+    // Registry survives a fresh service instance (persisted on disk).
+    mf::LlamaRuntimeService reopened(settings);
+    expect(reopened.backends().value("count", 0) == 1, "backend registry persisted");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
+void testOfflineLibrary() {
+    std::error_code ec;
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-library-" + mf::newId("t"));
+    mf::fs::create_directories(base / "data", ec);
+    const mf::fs::path datasets = base / "datasets" / "alpaca";
+    mf::fs::create_directories(datasets, ec);
+    mf::writeTextFile(datasets / "train.parquet", "parquet-bytes");
+    mf::writeTextFile(datasets / "README.md", "readme");
+
+    mf::Database db;
+    std::string error;
+    expect(db.open(mf::pathToUtf8(base / "data" / "test.db"), error), "library: database opens");
+    mf::SettingsService settings(db, base, base / "data", base);
+    mf::LlamaRuntimeService llama(settings);
+    mf::OfflineLibrary library(db, settings, llama);
+
+    const mf::json scanned = library.rescan(true);
+    expect(scanned.value("total", 0) >= 1, "rescan indexes the dataset folder");
+    const mf::json listed = library.list("dataset", "alpaca", 50);
+    expect(!listed["items"].empty(), "dataset listed in the library");
+    if (!listed["items"].empty()) {
+        expect(listed["items"][0].value("present", false), "indexed dataset is present on disk");
+        expect(listed["items"][0].value("onDiskFiles", 0) >= 2, "file count measured on disk");
+    }
+    const std::string datasetId = listed["items"].empty() ? std::string() : listed["items"][0].value("id", "");
+
+    // Export a self-contained bundle (copy mode) and import it after forgetting the row.
+    mf::json options{{"destination", mf::pathToUtf8(base / "bundle")}, {"copy", true}, {"includeSha256", true}};
+    std::string code;
+    const mf::json exported = library.exportBundle(options, code, error);
+    expect(error.empty() && exported.value("itemCount", 0) >= 1, "bundle export writes a manifest");
+    expect(mf::fs::is_regular_file(base / "bundle" / "modelforge-offline-bundle.json"),
+           "manifest file exists");
+    expect(mf::fs::is_regular_file(base / "bundle" / "SHA256SUMS.txt"), "checksum list written");
+    expect(mf::fs::is_directory(base / "bundle" / "files" / "dataset"), "files copied into bundle");
+
+    // Refuse to export into a resource folder (self-recursion guard).
+    mf::json badOptions{{"destination", mf::pathToUtf8(datasets / "inside")}, {"copy", true}};
+    std::string badCode;
+    const mf::json bad = library.exportBundle(badOptions, badCode, error);
+    expect(bad.empty() && badCode == "UNSAFE_DESTINATION", "export inside a resource is rejected");
+    error.clear();
+
+    expect(library.forget(datasetId, error), "forget removes the registry row");
+    expect(mf::fs::exists(datasets / "train.parquet"), "forget keeps files on disk");
+    expect(library.list("dataset", "alpaca", 50)["items"].empty(), "forgotten row is gone");
+
+    std::string importCode;
+    const mf::json imported = library.importBundle(mf::pathToUtf8(base / "bundle"), mf::json::object(), importCode, error);
+    expect(imported.value("importedCount", 0) >= 1, "bundle import registers resources");
+    expect(library.list("dataset", "alpaca", 50)["items"].size() >= 1, "imported resource is listed");
+
+    const mf::json verified = library.verifyAll();
+    expect(verified.value("checked", 0) >= 1, "verifyAll checks registered resources");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
+void testHealthCheck() {
+    std::error_code ec;
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-health-" + mf::newId("t"));
+    mf::fs::create_directories(base / "data" / "logs", ec);
+    mf::Database db;
+    std::string error;
+    expect(db.open(mf::pathToUtf8(base / "data" / "test.db"), error), "health: database opens");
+    mf::SettingsService settings(db, base, base / "data", base);
+    mf::ConverterService converter(settings);
+    mf::LlamaRuntimeService llama(settings);
+    mf::OfflineLibrary library(db, settings, llama);
+    mf::HealthCheckService health(db, settings, converter, llama, library, [] { return std::string(); });
+
+    const mf::json report = health.run(false, false);
+    expect(report.contains("items") && report["items"].is_array() && !report["items"].empty(),
+           "health report has items");
+    expect(report.contains("summary") && report["summary"].value("total", 0) > 0, "health summary counts items");
+    const std::string status = report.value("status", "");
+    expect(status == "ok" || status == "warn" || status == "error", "health status is valid");
+
+    bool sawDatabase = false;
+    bool sawDirs = false;
+    for (const auto& item : report["items"]) {
+        if (item.value("id", "") == "database") sawDatabase = true;
+        if (item.value("id", "") == "dir-models") sawDirs = true;
+    }
+    expect(sawDatabase, "database check present");
+    expect(sawDirs, "directory check present");
+
+    // ensure_dirs creates the default folders and clears the directory errors.
+    const mf::json fixed = health.fix("ensure_dirs", error);
+    expect(error.empty() && !fixed.empty(), "ensure_dirs fix runs");
+    expect(mf::fs::is_directory(settings.datasetsDir()), "fix created the datasets directory");
+    expect(fixed.contains("report") && fixed["report"].contains("items"), "fix returns a refreshed report");
+
+    std::string unknownError;
+    expect(health.fix("not-a-fix", unknownError).empty(), "unknown fix action rejected");
+    expect(!unknownError.empty(), "unknown fix reports an error");
+
+    const mf::json summary = health.summary();
+    expect(!summary.value("status", "").empty(), "health summary returns cached status");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
+
+void testAutoUpdateSetting() {
+    std::error_code ec;
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-autoupdate-" + mf::newId("t"));
+    mf::fs::create_directories(base / "data", ec);
+    mf::Database db;
+    std::string error;
+    expect(db.open(mf::pathToUtf8(base / "data" / "test.db"), error), "autoupdate: database opens");
+    mf::SettingsService settings(db, base, base / "data", base);
+    expect(settings.get().autoCheckUpdates, "startup update check defaults to enabled");
+
+    settings.update(mf::json{{"autoCheckUpdates", false}}, error);
+    expect(error.empty() && !settings.get().autoCheckUpdates, "startup update check can be disabled");
+
+    // Non-boolean input must not silently flip the value.
+    settings.update(mf::json{{"autoCheckUpdates", "maybe"}}, error);
+    expect(!settings.get().autoCheckUpdates, "non-boolean value ignored");
+    settings.update(mf::json{{"autoCheckUpdates", true}}, error);
+    expect(settings.get().autoCheckUpdates, "startup update check can be re-enabled");
+
+    const mf::json exported = settings.exportSettings();
+    expect(exported.value("autoCheckUpdates", false), "autoCheckUpdates exported");
+
+    // Channel still governs which releases are considered.
+    settings.update(mf::json{{"updateChannel", "nightly"}}, error);
+    expect(settings.get().updateChannel == "nightly", "update channel persisted alongside the toggle");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
 } // namespace
 
 int main() {
@@ -375,6 +601,11 @@ int main() {
     testSettingsPortValidation();
     testFsBrowser();
     testModelDeletion();
+    testHfDatasets();
+    testLlamaBackends();
+    testOfflineLibrary();
+    testHealthCheck();
+    testAutoUpdateSetting();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
         return 1;

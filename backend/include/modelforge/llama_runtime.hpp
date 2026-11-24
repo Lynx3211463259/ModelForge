@@ -101,6 +101,17 @@ public:
     json jobStatus() const;
     bool cancel(std::string& error);
 
+    // ---- Multiple co-installed backends ----
+    // Every extracted official release under <root>/releases is a candidate backend;
+    // the active one is the release referenced by modelforge-runtime.json.
+    json backends() const;
+    // Switches the active backend and repoints quantization/inference tool paths.
+    bool activateBackend(const std::string& id, std::string& error);
+    // Deletes an inactive backend directory. The active one must be switched first.
+    bool removeBackend(const std::string& id, std::string& error);
+    // Rebuilds <root>/backends.json from the releases/ layout (repairs lost state).
+    json refreshBackends();
+
     // Backend preference chain used for asset matching, e.g. {cuda, vulkan, cpu}.
     std::vector<std::string> backendChain() const;
     // Detected accelerator / runtime capabilities of the machine.
@@ -130,9 +141,15 @@ private:
     int64_t cachedAt_ = 0;
 
     fs::path statePath() const;
+    fs::path registryPath() const;
     fs::path downloadsDir() const;
     fs::path releasesDir() const;
     fs::path sourceDir() const;
+    json registry() const;
+    bool writeRegistry(const json& value) const;
+    void upsertBackendEntry(const std::string& releaseDir, const std::string& tag, const std::string& asset,
+                            const std::string& backend, const std::string& sourceRoot, const std::string& sha256,
+                            uint64_t size);
 
     LlamaCheckResult fetchReleases();
     LlamaCheckResult fetchReleaseByTag(const std::string& tag);

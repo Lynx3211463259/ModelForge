@@ -55,6 +55,7 @@ struct LocalFileState {
 struct DownloadManager::Job {
     std::string id;
     std::string repoId;
+    std::string repoType = "model";
     std::string revision;
     std::string destination;
     int concurrency = 4;
@@ -151,6 +152,7 @@ json DownloadManager::settings() {
         {"defaultDestination", pathToUtf8(settings_.modelsDir())},
         {"tokenSet", hasToken()},
         {"tokenMasked", tokenStatus().value("masked", "")},
+        {"datasetDestination", pathToUtf8(settings_.datasetsDir())},
         {"engine", "WinHTTP + Hugging Face REST API"}
     };
 }
@@ -432,6 +434,7 @@ void DownloadManager::startJob(const std::string& id) {
     if (rows.empty()) return;
     const json row = rows[0];
     job->repoId = row.value("repo_id", "");
+    job->repoType = HfClient::normalizeRepoType(row.value("repo_type", "model"));
     job->revision = row.value("revision", "main");
     job->destination = row.value("destination", "");
     job->concurrency = std::max(1, std::min(row.value("concurrency", 4), kMaxConcurrency));
@@ -786,7 +789,7 @@ bool DownloadManager::downloadFile(const std::shared_ptr<Job>& job, int64_t file
         job->abort.store(false);
 
         HttpDownloadOptions options;
-        options.url = HfClient::resolveUrl(job->repoId, job->revision, remotePath);
+        options.url = HfClient::resolveUrl(job->repoId, job->revision, remotePath, job->repoType);
         options.targetPath = partPath;
         options.resumeOffset = offset;
         options.connectTimeoutMs = 20000;
@@ -885,6 +888,27 @@ bool DownloadManager::downloadFile(const std::shared_ptr<Job>& job, int64_t file
 }
 
 json DownloadManager::finalizeImport(const std::shared_ptr<Job>& job) {
+    if (job->repoType == "dataset") {
+        std::string indexError;
+        const bool registered = registerDataset(job->id, indexError);
+        const auto taskRows = db_.query("SELECT file_count, total_bytes FROM download_tasks WHERE id=?", {job->id});
+        const int fileCount = taskRows.empty() ? 0 : taskRows[0].value("file_count", 0);
+        const uint64_t total = taskRows.empty() ? 0 : taskRows[0].value("total_bytes", 0ull);
+        json result{{"kind", "dataset"},
+                    {"repoId", job->repoId},
+                    {"revision", job->revision},
+                    {"path", job->destination},
+                    {"fileCount", fileCount},
+                    {"totalBytes", total},
+                    {"indexed", registered}};
+        if (!registered) result["indexError"] = indexError;
+        result["summary"] = registered
+            ? ("数据集已加入离线资源库（" + std::to_string(fileCount) + " 个文件，" + humanBytes(total) + "）")
+            : ("数据集下载完成，但写入离线资源库失败: " + indexError);
+        db_.query("INSERT INTO conversion_history(id,model_id,task_id,event,detail,created_at) VALUES(?,?,?,?,?,?)",
+                  {newId("hist"), "", job->id, "DATASET_DOWNLOADED", "从 Hugging Face 下载数据集: " + job->repoId, isoNow()});
+        return result;
+    }
     const fs::path dir = pathFromUtf8(job->destination);
     std::error_code ec;
     std::vector<fs::path> ggufFiles;
@@ -985,6 +1009,7 @@ bool DownloadManager::createTask(const DownloadRequest& request, std::string& ta
         return false;
     }
     const fs::path destination = fs::absolute(pathFromUtf8(request.destination));
+    const std::string repoType = HfClient::normalizeRepoType(request.repoType);
     if (!ensureDirectory(destination, error)) {
         code = "INVALID_DESTINATION";
         return false;
@@ -1026,7 +1051,7 @@ bool DownloadManager::createTask(const DownloadRequest& request, std::string& ta
         repositoryId = newId("repo");
         db_.query("INSERT INTO hf_repositories(id,repo_id,revision,commit_hash,repo_type,total_size,file_count,license,gated,raw_json,created_at,updated_at) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                  {repositoryId, request.repoId, request.revision, request.commitHash, "model", 0, 0, "", 0,
+                  {repositoryId, request.repoId, request.revision, request.commitHash, repoType, 0, 0, "", 0,
                    request.selection.dump(), isoNow(), isoNow()});
     }
 
@@ -1042,11 +1067,11 @@ bool DownloadManager::createTask(const DownloadRequest& request, std::string& ta
     const int concurrency = std::max(1, std::min(request.concurrency <= 0 ? 4 : request.concurrency, kMaxConcurrency));
     db_.query("INSERT INTO download_tasks(id,repository_id,repo_id,revision,commit_hash,destination,status,total_bytes,"
               "downloaded_bytes,speed,concurrency,max_speed,retry_count,file_count,completed_files,current_files,"
-              "selection_json,error_message,result_json,created_at,updated_at,completed_at) "
-              "VALUES(?,?,?,?,?,?,'pending',?,0,0,?,?,0,?,0,'',?,'','',?,?,0)",
+              "selection_json,error_message,result_json,created_at,updated_at,completed_at,repo_type) "
+              "VALUES(?,?,?,?,?,?,'pending',?,0,0,?,?,0,?,0,'',?,'','',?,?,0,?)",
               {id, repositoryId, request.repoId, request.revision, request.commitHash, pathToUtf8(destination),
                totalBytes, concurrency, request.maxSpeed, static_cast<int>(prepared.size()),
-               request.selection.dump(), nowMs(), nowMs()});
+               request.selection.dump(), nowMs(), nowMs(), repoType});
 
     // File sizes come from the resolve step; the API passes them through the selection payload.
     json sizes = request.selection.contains("sizes") ? request.selection["sizes"] : json::object();
@@ -1083,8 +1108,7 @@ bool DownloadManager::createTask(const DownloadRequest& request, std::string& ta
     return true;
 }
 
-json DownloadManager::loadTaskJson(const std::string& id, bool includeFiles) {
-    const auto rows = db_.query("SELECT * FROM download_tasks WHERE id=?", {id});
+json DownloadManager::loadTaskJson(const std::string& id, bool includeFiles) {    const auto rows = db_.query("SELECT * FROM download_tasks WHERE id=?", {id});
     if (rows.empty()) return json::object();
     const json row = rows[0];
     const uint64_t total = row.value("total_bytes", 0ull);
@@ -1101,6 +1125,7 @@ json DownloadManager::loadTaskJson(const std::string& id, bool includeFiles) {
     json task{
         {"id", id},
         {"repoId", row.value("repo_id", "")},
+        {"repoType", HfClient::normalizeRepoType(row.value("repo_type", "model"))},
         {"revision", row.value("revision", "")},
         {"commitHash", row.value("commit_hash", "")},
         {"destination", row.value("destination", "")},
@@ -1166,8 +1191,51 @@ json DownloadManager::getTask(const std::string& id, bool includeFiles) {
     return task;
 }
 
-json DownloadManager::files(const std::string& id) {
-    json items = json::array();
+bool DownloadManager::registerDataset(const std::string& taskId, std::string& error) {
+    const auto rows = db_.query("SELECT * FROM download_tasks WHERE id=?", {taskId});
+    if (rows.empty()) {
+        error = "下载任务不存在";
+        return false;
+    }
+    const json row = rows[0];
+    const std::string repoId = row.value("repo_id", "");
+    const std::string revision = row.value("revision", "main");
+    const std::string destination = row.value("destination", "");
+    if (repoId.empty() || destination.empty()) {
+        error = "数据集任务缺少仓库或目录信息";
+        return false;
+    }
+    const auto fileRows = db_.query("SELECT remote_path, file_size FROM download_files WHERE task_id=? AND status='completed'",
+                                    {taskId});
+    json categories = json::object();
+    json files = json::array();
+    uint64_t total = 0;
+    for (const auto& file : fileRows) {
+        const std::string remote = file.value("remote_path", "");
+        const std::string category = HfClient::classifyDatasetFile(remote);
+        categories[category] = categories.value(category, 0) + 1;
+        const uint64_t size = file.value("file_size", 0ull);
+        total += size;
+        if (files.size() < 5000) files.push_back(json{{"path", remote}, {"size", size}, {"category", category}});
+    }
+    json meta{{"fileCount", static_cast<int>(fileRows.size())},
+              {"categories", categories},
+              {"commitHash", row.value("commit_hash", "")},
+              {"taskId", taskId},
+              {"files", files}};
+    const std::string path = fs::absolute(pathFromUtf8(destination)).generic_u8string();
+    // One library entry per path: re-downloading into the same folder refreshes it.
+    db_.query("DELETE FROM offline_resources WHERE type='dataset' AND path=?", {path});
+    const std::string id = newId("res");
+    db_.query("INSERT INTO offline_resources(id,type,name,version,path,size,file_count,sha256,source,repo_id,revision,"
+              "meta_json,created_at,updated_at) VALUES(?,'dataset',?,?,?,?,?,'','huggingface',?,?,?,?,?)",
+              {id, repoId, revision, path, total, static_cast<int>(fileRows.size()), repoId, revision, meta.dump(),
+               isoNow(), isoNow()});
+    appendLog(taskId, "INFO", "数据集已登记到离线资源库: " + repoId);
+    return true;
+}
+
+json DownloadManager::files(const std::string& id) {    json items = json::array();
     const auto rows = db_.query("SELECT * FROM download_files WHERE task_id=? ORDER BY remote_path", {id});
     for (const auto& row : rows) {
         items.push_back(json{

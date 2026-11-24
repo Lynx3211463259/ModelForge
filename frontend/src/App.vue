@@ -6,6 +6,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from './stores/app'
 import Icon from './components/Icon.vue'
+import UpdateBanner from './components/UpdateBanner.vue'
 
 const route = useRoute()
 const app = useAppStore()
@@ -36,9 +37,11 @@ const navGroups = computed(() => [
       { to: '/workflows', icon: 'workflows', label: t('工作流') },
       { to: '/history', icon: 'history', label: t('转换历史') },
       { to: '/downloads', icon: 'downloads', label: t('下载管理') },
+      { to: '/library', icon: 'layers', label: t('离线资源库') },
       { to: '/watch', icon: 'folder', label: t('文件夹监控') },
       { to: '/runtime', icon: 'cpu', label: t('运行引擎') },
       { to: '/plugins', icon: 'plugins', label: t('插件管理') },
+      { to: '/health', icon: 'activity', label: t('健康自检') },
       { to: '/settings', icon: 'settings', label: t('系统设置') }
     ]
   }
@@ -160,6 +163,7 @@ watch(() => route.fullPath, () => { app.sidebarOpen = false })
       </header>
 
       <main class="page">
+        <UpdateBanner />
         <div v-if="portFallback" class="notice warning port-fallback-banner" role="status">
           <Icon name="warning" :size="15" class="notice-icon" />
           <div>

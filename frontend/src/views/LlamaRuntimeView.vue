@@ -10,6 +10,8 @@ import ProgressBar from '../components/ProgressBar.vue'
 const app = useAppStore()
 
 const runtime = ref<any>(null)
+const backends = ref<{ items: any[]; count: number; activeId: string }>({ items: [], count: 0, activeId: '' })
+const backendBusy = ref('')
 const probe = ref<any>(null)
 const job = ref<any>(null)
 const check = ref<any>(null)
@@ -79,11 +81,64 @@ async function load() {
       llamaBackend: settings.llamaBackend || 'auto',
       llamaChannel: settings.llamaChannel || 'auto'
     }
+    await loadBackends()
     if (jobActive.value) startPolling()
   } catch (error) {
     app.fromError(error, t('加载运行时状态失败'))
   } finally {
     loading.value = false
+  }
+}
+
+async function loadBackends() {
+  try {
+    backends.value = await api.get<any>('/api/v1/llama/backends')
+  } catch (error) {
+    app.fromError(error, t('读取已安装后端失败'))
+  }
+}
+
+async function activateBackend(id: string) {
+  if (!id || backendBusy.value) return
+  backendBusy.value = id
+  try {
+    const result = await api.post<any>(`/api/v1/llama/backends/${encodeURIComponent(id)}/activate`, {})
+    runtime.value = result.status || runtime.value
+    backends.value = result.backends || backends.value
+    app.toast('success', t('已切换后端'), id)
+    await app.refreshCapabilities(true)
+  } catch (error) {
+    app.fromError(error, t('切换后端失败'))
+  } finally {
+    backendBusy.value = ''
+  }
+}
+
+async function removeBackend(id: string) {
+  if (!id || backendBusy.value) return
+  if (!window.confirm(t('删除后端 {0} 的本地文件？该操作不可恢复。', [id]))) return
+  backendBusy.value = id
+  try {
+    const result = await api.delete<any>(`/api/v1/llama/backends/${encodeURIComponent(id)}`)
+    backends.value = result.backends || backends.value
+    app.toast('success', t('已删除后端'), id)
+    await loadBackends()
+  } catch (error) {
+    app.fromError(error, t('删除后端失败'))
+  } finally {
+    backendBusy.value = ''
+  }
+}
+
+async function refreshBackends() {
+  backendBusy.value = 'refresh'
+  try {
+    backends.value = await api.post<any>('/api/v1/llama/backends/refresh', {})
+    app.toast('success', t('后端列表已刷新'), t('{0} 个可用后端', [backends.value.count || 0]))
+  } catch (error) {
+    app.fromError(error, t('刷新后端失败'))
+  } finally {
+    backendBusy.value = ''
   }
 }
 
@@ -384,6 +439,64 @@ onBeforeUnmount(() => {
               <div class="small muted" style="align-self: center">{{ t('保存后会自动重新检测并检查更新。') }}</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 14px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">{{ t('已安装后端（并存）') }}</div>
+            <div class="card-subtitle">{{ t('每个官方发行版解压到独立目录，可随时切换；切换只改写工具路径，不会重新下载。') }}</div>
+          </div>
+          <div class="card-header-actions">
+            <span class="badge no-dot info">{{ t('{0} 个可用', [backends.count || 0]) }}</span>
+            <button class="btn btn-sm" :disabled="backendBusy === 'refresh'" @click="refreshBackends">
+              <Icon name="refresh" :size="12" /> {{ t('重新扫描') }}
+            </button>
+          </div>
+        </div>
+        <div class="card-body" :class="{ flush: !backends.items.length }">
+          <div v-if="!backends.items.length" class="empty-state" style="padding: 32px 16px">
+            <div class="empty-icon"><Icon name="cpu" :size="22" /></div>
+            <div class="empty-title">{{ t('尚未安装任何后端') }}</div>
+            <div class="empty-copy">{{ t('在上方“下载与安装”中选择 CPU / CUDA / Vulkan 等官方资源；不同后端会分别安装到 releases 目录并在此并列显示。') }}</div>
+          </div>
+          <table v-else class="table">
+            <thead>
+              <tr>
+                <th>{{ t('后端') }}</th>
+                <th>{{ t('版本') }}</th>
+                <th>{{ t('目录') }}</th>
+                <th style="width: 110px">{{ t('状态') }}</th>
+                <th style="width: 200px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in backends.items" :key="item.id">
+                <td>
+                  <div class="strong">{{ item.backendLabel || item.backend || '—' }}</div>
+                  <div class="mono small muted">{{ item.id }}</div>
+                </td>
+                <td class="mono">{{ item.tag || '—' }}</td>
+                <td class="mono small muted" style="max-width: 320px; overflow: hidden; text-overflow: ellipsis">{{ item.releaseDir }}</td>
+                <td>
+                  <span class="badge no-dot" :class="item.active ? 'success' : (item.usable ? 'info' : 'danger')">
+                    {{ t('{0}', [item.active ? t('当前使用') : (item.usable ? t('可切换') : t('不可用'))]) }}
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-row">
+                    <button class="btn btn-sm" :disabled="item.active || backendBusy === item.id" @click="activateBackend(item.id)">
+                      <span v-if="backendBusy === item.id" class="spinner"></span><Icon v-else name="check" :size="12" /> {{ t('启用') }}
+                    </button>
+                    <button class="btn btn-sm" :disabled="item.active || backendBusy === item.id" @click="removeBackend(item.id)">
+                      <Icon name="trash" :size="12" /> {{ t('删除') }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

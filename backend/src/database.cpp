@@ -437,6 +437,42 @@ CREATE TABLE IF NOT EXISTS watch_events (
 
 CREATE INDEX IF NOT EXISTS idx_watch_events_created ON watch_events(created_at DESC);
 
+-- Offline resource library: every artifact ModelForge can serve without network.
+-- Rows only describe files on disk; unregistering never deletes the files.
+CREATE TABLE IF NOT EXISTS offline_resources (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL,
+  size INTEGER DEFAULT 0,
+  file_count INTEGER DEFAULT 0,
+  sha256 TEXT DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',
+  repo_id TEXT NOT NULL DEFAULT '',
+  revision TEXT NOT NULL DEFAULT '',
+  meta_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_offline_type ON offline_resources(type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_offline_path ON offline_resources(path);
+
+-- Bundle history for export/import so the UI can explain where a bundle came from.
+CREATE TABLE IF NOT EXISTS offline_bundles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  root TEXT NOT NULL,
+  manifest_path TEXT NOT NULL,
+  item_count INTEGER DEFAULT 0,
+  total_size INTEGER DEFAULT 0,
+  direction TEXT NOT NULL DEFAULT 'export',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_offline_bundles_created ON offline_bundles(created_at DESC);
+
+INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'));
+
 INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'));
 
 INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
@@ -449,6 +485,18 @@ INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime
         throw std::runtime_error(error);
     }
     if (message) sqlite3_free(message);
+
+    // Additive column migrations for databases created by earlier versions.
+    // SQLite has no "ADD COLUMN IF NOT EXISTS", so inspect PRAGMA table_info first.
+    auto addColumn = [this](const char* table, const char* column, const char* definition) {
+        const auto info = query(std::string("PRAGMA table_info(") + table + ")");
+        for (const auto& row : info) {
+            if (row.value("name", "") == column) return;
+        }
+        std::string ignored;
+        exec(std::string("ALTER TABLE ") + table + " ADD COLUMN " + column + " " + definition, ignored);
+    };
+    addColumn("download_tasks", "repo_type", "TEXT NOT NULL DEFAULT 'model'");
 
     // Seed built-in profiles only when the table is empty.
     const auto countRows = query("SELECT COUNT(*) AS n FROM quantization_profiles");

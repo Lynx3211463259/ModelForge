@@ -3,7 +3,9 @@
 #include "modelforge/converter.hpp"
 #include "modelforge/download_manager.hpp"
 #include "modelforge/event_hub.hpp"
+#include "modelforge/health_check.hpp"
 #include "modelforge/llama_runtime.hpp"
+#include "modelforge/offline_library.hpp"
 #include "modelforge/openapi.hpp"
 #include "modelforge/quality_service.hpp"
 #include "modelforge/settings.hpp"
@@ -23,7 +25,8 @@ class ApiServer {
 public:
     ApiServer(SettingsService& settings, ConverterService& converter, TaskManager& tasks,
               SystemService& system, DownloadManager& downloads, LlamaRuntimeService& llama,
-              QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws, UpdateService& update);
+              QualityService& quality, WatchService& watch, EventHub& events, WsServer& ws, UpdateService& update,
+              OfflineLibrary& library, HealthCheckService& health);
     ~ApiServer();
 
     bool prepare(std::string& error);
@@ -49,6 +52,8 @@ private:
     EventHub& events_;
     WsServer& ws_;
     UpdateService& update_;
+    OfflineLibrary& library_;
+    HealthCheckService& health_;
     int actualPort_ = 0;
     std::string portFallbackReason_;
     std::unique_ptr<httplib::Server> server_;
@@ -68,6 +73,8 @@ private:
     void registerLlamaRoutes();
     void registerQualityRoutes();
     void registerWatchRoutes();
+    void registerOfflineRoutes();
+    void registerHealthRoutes();
     void registerUpdateRoutes();
     json capabilities() const;
     bool readJson(const httplib::Request& req, json& out, std::string& error) const;

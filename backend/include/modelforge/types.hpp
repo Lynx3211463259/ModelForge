@@ -54,6 +54,8 @@ struct AppSettings {
     std::string llamaChannel = "auto";
     std::string llamaRepo = "ggml-org/llama.cpp";
     std::string defaultModelDir;
+    // Root folder for Hugging Face datasets (kept apart from model weights).
+    std::string datasetsDir;
     std::string defaultOutputDir;
     std::string tempDir;
     std::string dataDir;
@@ -69,6 +71,8 @@ struct AppSettings {
     // 应用自身更新通道：stable 仅正式版，nightly 优先预发布/每日构建，
     // auto 直接采用版本号最高的构建（含预发布）。
     std::string updateChannel = "stable";
+    // 启动时静默检查 ModelForge 与 llama.cpp 更新；失败/离线不影响启动。
+    bool autoCheckUpdates = true;
     bool folderWatchEnabled = false;
     std::vector<std::string> watchFolders;
     int watchIntervalSec = 30;
