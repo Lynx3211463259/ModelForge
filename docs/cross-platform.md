@@ -272,4 +272,5 @@ unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
 - Android 已完成交叉编译与链接校验（musl 静态）；iOS 没有可分发产物：Zig 在
   没有 Apple SDK 的 Windows 上无法提供 iOS libc 头文件（首个错误是
   `sys/param.h` 缺失），因此语法检查也需要在安装 Xcode 的 macOS 上执行。两个平台
-  的界面与文件选择器行为均未实机验证。
+  的界面与文件选择器行为均未实机验证。可选的签名/分发路线与 iOS 原生化方案见
+  [`ios-distribution.md`](ios-distribution.md)。
