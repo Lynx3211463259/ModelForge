@@ -125,7 +125,6 @@ for title, items in groups:
         lines.append(f"- [{label}]({base}/ModelForge-{version}-{slug}.zip)")
     lines.append("")
 lines.extend([
-    "iOS: no distributable build (signing required; no long-lived background HTTP service).",
     "Source stays syntax-checked only.",
     "",
     "Verify your download with `SHA256SUMS.txt` in the Assets section below.",

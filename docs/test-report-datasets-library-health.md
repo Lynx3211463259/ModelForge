@@ -42,7 +42,7 @@
 - 新增源码均为平台中立实现（`ghc::filesystem`、SQLite、既有 `sha256File`/`diskFreeBytes`/`directoryWritable`）。
 - `scripts/cross-common.sh` 以 `backend/src/*.cpp` 通配收集源文件，`offline_library.cpp`、`health_check.cpp` 自动纳入各平台构建。
 - **未执行** POSIX 交叉编译：本机未安装 Zig（仅有缺 lib 的 `@zigc` npm 二进制）；从 ziglang.org 下载 82 MB 工具链在 300 s 内仅完成约 7 MB，续传 2 分钟后仍不足 10 MB，故按网络原因中止。代码路径不含平台分支，后端识别已覆盖 `.so` / `.dylib`。
-- Android / iOS 仍为源码级校验，未实机验证。
+- Android 已完成交叉编译与链接校验，未在真机运行。
 
 ## 5. 已知限制
 

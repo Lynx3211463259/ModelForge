@@ -6,7 +6,7 @@
 
 ModelForge 是一个以 **C++ 为核心后端、Web UI 为交互界面** 的本地 AI 模型转换与管理平台。重点不是演示一个转换脚本，而是把模型扫描、真实子进程、任务队列、实时事件、证据化日志和产物验证组织成一套可运行软件。
 
-> 当前版本：`1.0.0`（跨平台：Windows/Linux/macOS/Android(Termux)/openEuler 独立构建产物；iOS 受 Apple 签名与平台策略阻塞，详见 `docs/cross-platform.md`）。（新增 Hugging Face 下载中心；llama.cpp 改为官方 release 原样分发，并新增运行引擎的版本识别与更新下载）。已验证 Windows 11 + MinGW-w64 GCC 16.2.0 + llama.cpp 官方发行版转换链。Linux/macOS 的进程与文件代码已提供，但本版本未在对应环境实测。
+> 当前版本：`1.0.0`（跨平台：Windows/Linux/macOS/Android(Termux)/openEuler 独立构建产物）。（新增 Hugging Face 下载中心；llama.cpp 改为官方 release 原样分发，并新增运行引擎的版本识别与更新下载）。已验证 Windows 11 + MinGW-w64 GCC 16.2.0 + llama.cpp 官方发行版转换链。Linux/macOS 的进程与文件代码已提供，但本版本未在对应环境实测。
 
 ![ModelForge](docs/images/dashboard.png)
 
@@ -31,7 +31,6 @@ ModelForge 是一个以 **C++ 为核心后端、Web UI 为交互界面** 的本�
 - 启动自动更新检查：可开关（默认开启），同时检查 ModelForge 与 llama.cpp；仅在有更新时于页面顶部显示横幅与“更新”按钮，离线/失败/已是最新时静默且不阻断启动。
 - 模型库、转换历史、量化实验室、体积估算、工作流、CLI、设置导入导出。
 - Web UI：深色 / 浅色 / 跟随系统三态主题，简体中文与英文双语，17 个功能入口，响应式布局。
-- iOS 分发路线评估见 `docs/ios-distribution.md`；当前无 iOS 可分发产物。
 - 配置预设页：内置只读预设 + 自定义预设的增删改，一键套用到转换页。
 - PPL 质量评测：调用官方 `llama-perplexity` 在固定文本上评测每个 GGUF，结果按模型对比（PPL、相对劣化、Token 数、耗时、峰值内存），支持取消与自定义语料。
 - 任务级资源采样：按阶段记录子进程 CPU 时间、峰值内存、磁盘读写（Windows 使用 Job 对象账户信息，覆盖 venv python 的子进程）。
@@ -415,7 +414,7 @@ scripts\package-windows.ps1 -LlamaTag b12532 -LlamaBackend cuda
 
 `branding/model-forge-logo.jpg` 是唯一源图；运行 `python scripts/generate-icons.py`（需 Pillow）可重新生成全部图标：
 
-- `frontend/public/favicon.ico`（16/24/32/48/64/128/256 多尺寸）、`favicon-16x16.png`、`favicon-32x32.png`、`apple-touch-icon.png`、`android-chrome-192x192.png`、`android-chrome-512x512.png` — 随 Web UI 分发到所有平台；
+- `frontend/public/favicon.ico`（16/24/32/48/64/128/256 多尺寸）、`favicon-16x16.png`、`favicon-32x32.png`、`android-chrome-192x192.png`、`android-chrome-512x512.png` — 随 Web UI 分发到所有平台；
 - `docs/images/logo.png` — README 与文档展示；
 - Windows `modelforge.exe` 通过 `backend/modelforge.rc.in` 内嵌同一份 ICO。其他平台的可执行文件不带图标资源，桌面启动器可引用 `docs/images/logo.png`。
 

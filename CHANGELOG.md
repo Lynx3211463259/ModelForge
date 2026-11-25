@@ -161,5 +161,3 @@ The public version number starts at 1.0.0; it supersedes those internal builds.
 - Windows is built and validated on real hardware.
 - POSIX targets are cross-compiled, linked and statically checked, but have not
   been executed on their target devices yet.
-- iOS has no distributable artifact: the platform cannot host a long-lived
-  background HTTP service and requires signing.

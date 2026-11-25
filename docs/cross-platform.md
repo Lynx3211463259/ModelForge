@@ -17,7 +17,6 @@
 | macOS | ✅ 已构建验证（交叉编译 Mach-O） | `ModelForge-1.0.1-macos-arm64/x64.zip` | 否（未签名，未实机运行） |
 | Android | ✅ 已构建验证（Termux 形态，静态 musl） | `ModelForge-1.0.1-android-arm64/x64.zip` | 否 |
 | openEuler | ✅ 已构建验证（静态 musl） | `ModelForge-1.0.1-openeuler-x64/arm64.zip` | 否 |
-| iOS | ❌ 阻塞（无 Apple SDK / 无证书 / 无后台服务部署路径） | 无（仅语法静态检查） | 否 |
 
 关键说明：除 Windows 外，交叉产物均已完成**编译与链接**并通过魔数校验（ELF / Mach-O）、
 前端产物打包与脚本静态检查，但**未在对应真机运行**。原因与风险见第 6 节。
@@ -42,7 +41,7 @@
 | 12 | 端口探测 | `winsock` bind | `socket`/`bind`（`inet_pton` 绑定实际地址） | `checkTcpPort(port, host)` 统一 |
 | 13 | 构建配置 | CMake + MinGW GCC 16.2.0 | zig 0.14.0 交叉编译（musl/glibc/Mach-O） | 每平台独立脚本 |
 | 14 | 打包 | `package-windows.ps1`（zip） | zip（按平台/架构分离） | 每平台独立产物 |
-| 15 | 签名 | 无（zip） | macOS 需 codesign+notarize；iOS 需证书 | 见第 6 节 |
+| 15 | 签名 | 无（zip） | macOS 需 codesign+notarize | 见第 6 节 |
 | 16 | 应用图标 | `modelforge.exe` 通过 RC 内嵌多尺寸 ICO | Web UI 自带 favicon / PNG（全平台一致）；其他平台可执行文件无内嵌图标，启动器可引用 `docs/images/logo.png` | 同一源图生成 |
 
 修复的跨平台缺陷（Windows 上被 `uint64_t == unsigned long long` 掩盖）：
@@ -133,14 +132,6 @@ zig 版本约束：需要支持 `-target *-linux-musl`、`*-macos-none` 与 `zig
 产物：release\ModelForge-1.0.1-macos-{arm64,x64}.zip
 ```
 
-### iOS（阻塞）
-
-```
-原因：需要 Apple SDK、Xcode、开发者证书；iOS 不支持常驻后台 HTTP 服务。
-命令：bash scripts/build-ios.sh        # 仅 -fsyntax-only 静态检查，不产可运行产物
-解除阻塞（macOS 上）：Xcode 工程 + SwiftUI/WKWebView 外壳内嵌本二进制 → codesign → 上架/TestFlight
-```
-
 ### 产物结构树（POSIX 包示例）
 
 ```
@@ -158,18 +149,18 @@ ModelForge-1.0.1-linux-x64.zip
 
 ## 6. 验收矩阵
 
-| 检查项 | Windows | Linux | macOS | Android | openEuler | iOS |
-| --- | --- | --- | --- | --- | --- | --- |
-| 编译通过 | ✅ 实机 | ✅ 交叉 | ✅ 交叉 | ✅ 交叉 | ✅ 交叉 | ❌ 阻塞 |
-| 链接通过 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
-| 产物魔数正确（PE/ELF/Mach-O） | ✅ PE | ✅ ELF | ✅ Mach-O | ✅ ELF | ✅ ELF | — |
-| 单元测试 `core_tests` | ✅ 7/7 | 未跑（未实机） | 未跑 | 未跑 | 未跑 | — |
-| `serve` 启动 + `/health` 200 | ✅ | 未跑 | 未跑 | 未跑 | 未跑 | — |
-| 运行时识别（llama status） | ✅ b12532/CPU | 未跑 | 未跑 | 未跑 | 未跑 | — |
-| 转换能力（conversionReady） | ✅ | 未跑 | 未跑 | 未跑 | 未跑 | — |
-| 端口占用自动回退（临时，不写回设置） | ✅ 双实例实测 | 未跑（同源逻辑） | 未跑 | 未跑 | 未跑 | — |
-| HTTPS（下载/HF/更新） | ✅ WinHTTP | 未跑（curl 适配器，静态检查） | 未跑 | 未跑 | 未跑 | — |
-| 前端打包进产物 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| 检查项 | Windows | Linux | macOS | Android | openEuler |
+| --- | --- | --- | --- | --- | --- |
+| 编译通过 | ✅ 实机 | ✅ 交叉 | ✅ 交叉 | ✅ 交叉 | ✅ 交叉 |
+| 链接通过 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 产物魔数正确（PE/ELF/Mach-O） | ✅ PE | ✅ ELF | ✅ Mach-O | ✅ ELF | ✅ ELF |
+| 单元测试 `core_tests` | ✅ 7/7 | 未跑（未实机） | 未跑 | 未跑 | 未跑 |
+| `serve` 启动 + `/health` 200 | ✅ | 未跑 | 未跑 | 未跑 | 未跑 |
+| 运行时识别（llama status） | ✅ b12532/CPU | 未跑 | 未跑 | 未跑 | 未跑 |
+| 转换能力（conversionReady） | ✅ | 未跑 | 未跑 | 未跑 | 未跑 |
+| 端口占用自动回退（临时，不写回设置） | ✅ 双实例实测 | 未跑（同源逻辑） | 未跑 | 未跑 | 未跑 |
+| HTTPS（下载/HF/更新） | ✅ WinHTTP | 未跑（curl 适配器，静态检查） | 未跑 | 未跑 | 未跑 |
+| 前端打包进产物 | ✅ | ✅ | ✅ | ✅ | ✅ |
 “未跑”≠失败：指在非 Windows 宿主上无法执行该平台二进制，仅完成编译/链接与静态检查。
 
 ---
@@ -183,13 +174,12 @@ ModelForge-1.0.1-linux-x64.zip
    → 「运行引擎」安装对应平台 llama.cpp 资产 → 一次真实转换，作为上线前复核。
 2. **macOS 未签名/未公证**：首次运行会触发 Gatekeeper 拦截，需 `codesign --deep --force --sign "Developer ID Application: ..."`，
    再用 `xcrun notarytool submit --wait` 与 `xcrun stapler staple`。
-3. **iOS 无法落地为可分发产物**：非工具链问题，而是平台策略（无后台常驻服务 + 必须签名上架）所致。
-4. **Android 采用 Termux 控制台形态**：普通 Android 应用无法常驻 HTTP 服务，
+3. **Android 采用 Termux 控制台形态**：普通 Android 应用无法常驻 HTTP 服务，
    因此后端以 Termux 内运行的静态二进制提供。
-5. **静态 musl 二进制体积较大**（~40–60 MB，含 libc++ 静态链接 + httplib）：
+4. **静态 musl 二进制体积较大**（~40–60 MB，含 libc++ 静态链接 + httplib）：
    已在链接加 `-s` 去除符号；如需进一步压缩可改为动态链接 glibc（Linux/openEuler 可换 `-target *-linux-gnu`）。
-6. **交叉编译工具链版本敏感**：`zig 0.14.0-dev` 为开发版；正式发布建议锁 0.14.0 稳定版并重跑全部目标。
-7. **全局下载限速在 POSIX 上为逐进程执行**：curl 适配器对每个下载进程施加限速，跨文件的总带宽语义
+5. **交叉编译工具链版本敏感**：`zig 0.14.0-dev` 为开发版；正式发布建议锁 0.14.0 稳定版并重跑全部目标。
+6. **全局下载限速在 POSIX 上为逐进程执行**：curl 适配器对每个下载进程施加限速，跨文件的总带宽语义
    与 Windows 的共享令牌桶不完全一致（单文件限速一致）。已注明，未改变文件最终结果与校验逻辑。
 
 ---
@@ -243,8 +233,6 @@ unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
   `modelforge.exe` 再 `xcopy` 覆盖并重启），POSIX 用 `apply-update.sh`
   （`cp -a` 覆盖后 `chmod +x` 并 `nohup` 重启）。脚本以分离进程启动，
   不会阻塞 HTTP 请求。
-- iOS 无分发产物，更新入口只用于说明；源码保持同一套可编译逻辑，仅做
-  `-fsyntax-only` 校验。
 
 ## 10. 数据集、多后端、离线库与自检的跨平台说明
 
@@ -269,8 +257,4 @@ unzip ModelForge-1.0.1-android-arm64.zip && cd android-arm64 && bash run.sh
   `backendFromDir` 已覆盖这两类文件名，静态构建则按资产名（含 `-cuda` 等）回退判断。
 - **健康自检**：`web-root` 检查依赖发行包中 `frontend/dist` 的位置；服务化部署
   （systemd/launchd）时若静态目录不同，需在设置中修正。
-- Android 已完成交叉编译与链接校验（musl 静态）；iOS 没有可分发产物：Zig 在
-  没有 Apple SDK 的 Windows 上无法提供 iOS libc 头文件（首个错误是
-  `sys/param.h` 缺失），因此语法检查也需要在安装 Xcode 的 macOS 上执行。两个平台
-  的界面与文件选择器行为均未实机验证。可选的签名/分发路线与 iOS 原生化方案见
-  [`ios-distribution.md`](ios-distribution.md)。
+- Android 已完成交叉编译与链接校验（musl 静态），未在真机运行；其界面与文件选择器行为未实机验证。

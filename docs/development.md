@@ -36,7 +36,8 @@ Windows 打包（`scripts/package-windows.ps1`）和发布脚本
 ### 获取 Zig（POSIX 交叉编译）
 
 `scripts/build-linux.sh`、`build-macos.sh`、`build-openeuler.sh`、`build-android.sh`、
-`build-ios.sh` 需要 Zig。若 ziglang.org 下载缓慢，可用 PyPI 镜像获取同一版本：
+`build-linux.sh`、`build-macos.sh`、`build-openeuler.sh`、`build-android.sh` 需要 Zig。
+若 ziglang.org 下载缓慢，可用 PyPI 镜像获取同一版本：
 
 ```bash
 pip download ziglang==0.14.1 --no-deps -d temp/zigpkg -i https://pypi.tuna.tsinghua.edu.cn/simple

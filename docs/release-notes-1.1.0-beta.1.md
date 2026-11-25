@@ -63,8 +63,6 @@
 - 发布资产覆盖 Windows x64、Linux x64/arm64、macOS x64/arm64、Android x64/arm64、
   openEuler x64/arm64，共 9 个 ZIP，并附 `SHA256SUMS.txt`。
 - Windows 为本机构建与真实链路验证；POSIX 目标为交叉编译/链接校验，未实机运行。
-- macOS 产物未签名，分发前需自行 codesign + notarize；iOS 仍受 SDK/签名限制，
-  仅保持源码层面的同步与语法校验意图。
 - 验证记录见 `docs/test-report-datasets-library-health.md`。
 - 预发布版本号形如 `1.1.0-beta.1`，更新检查按数字部分比较；正式 `1.1.0` 发布后，
   预发布用户会收到正式版更新提示。
@@ -98,7 +96,6 @@ Choose the archive for your operating system and architecture. All builds are ZI
 - [openEuler x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.1.0-beta.1/ModelForge-1.1.0-beta.1-openeuler-x64.zip)
 - [openEuler arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.1.0-beta.1/ModelForge-1.1.0-beta.1-openeuler-arm64.zip)
 
-iOS: no distributable build (signing required; no long-lived background HTTP service). Source stays syntax-checked only.
 
 Verify your download with `SHA256SUMS.txt` in the Assets section below.
 <!-- DOWNLOADS:END -->

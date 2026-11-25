@@ -29,7 +29,6 @@ Choose the archive for your operating system and architecture. All builds are ZI
 - [openEuler x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-openeuler-x64.zip)
 - [openEuler arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.0/ModelForge-1.0.0-openeuler-arm64.zip)
 
-iOS: no distributable build (signing required; no long-lived background HTTP service). Source stays syntax-checked only.
 
 Verify your download with `SHA256SUMS.txt` in the Assets section below.
 <!-- DOWNLOADS:END -->
@@ -81,8 +80,6 @@ linked to the task and log that produced it.
 - POSIX targets (Linux, macOS, Android, openEuler) are cross-compiled and
   statically checked but have not been run on their target devices yet.
 - macOS binaries are unsigned; Gatekeeper will block them until signed and notarized.
-- iOS has no distributable artifact: the platform cannot host a long-lived
-  background HTTP service and requires signing.
 - A single-node deployment only; remote conversion nodes are planned.
 
 ## Installation

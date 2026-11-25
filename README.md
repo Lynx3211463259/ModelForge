@@ -86,7 +86,6 @@ actually happened — not at hosted inference services.
   disk space, Python/conversion dependencies, llama.cpp tools, backend
   inventory, offline-library integrity and listening config, with safe
   one-click fixes and an opt-in network probe.
-- **iOS distribution options** are evaluated in `docs/ios-distribution.md`; no iOS artifact is shipped yet.
 - **Startup update check** — one toggle (on by default) checks both ModelForge
   and llama.cpp; a top banner with an Update button appears only when something
   can be updated. Offline, failed and up-to-date checks stay silent and never
@@ -169,7 +168,6 @@ Portable builds are attached to
 | macOS arm64 / x64 | `ModelForge-1.0.1-macos-{arm64,x64}.zip` | Cross-built, unsigned |
 | Android (Termux) | `ModelForge-1.0.1-android-{arm64,x64}.zip` | Cross-built, not run on device |
 | openEuler x64 / arm64 | `ModelForge-1.0.1-openeuler-{x64,arm64}.zip` | Cross-built, not run on device |
-| iOS | — | Blocked by platform policy (no long-lived background service, signing required) |
  
 ### In-app software update
 

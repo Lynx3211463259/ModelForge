@@ -40,7 +40,7 @@
 | 28 | CLI | ✅ | `scan`、`validate`、`convert`、`serve`、`download hf/list/pause/resume/cancel/retry/delete`；与 Web 共用 TaskManager 与 DownloadManager，跨进程锁。 |
 | 29 | 插件化转换引擎 | ◐ | 内置 llama.cpp 适配器；可读取 `plugins/*.json` 清单；不加载未知二进制。 |
 | 30 | 主题与多语言 | ✅ | 深色 / 浅色 / 跟随系统（CSS 语义变量，无布局分叉）；简体中文 / English，中文源串为键、缺失回退；设置项持久化到 SQLite。后端诊断文本仍为中文。 |
-| 31 | 应用图标 | ✅ | 由 `branding/model-forge-logo.jpg` 生成多尺寸 ICO（16–256）与 PNG；Web UI 全平台统一显示 favicon / apple-touch-icon，Windows exe 通过 RC 内嵌同一份 ICO。`scripts/generate-icons.py` 保证可复现。 |
+| 31 | 应用图标 | ✅ | 由 `branding/model-forge-logo.jpg` 生成多尺寸 ICO（16–256）与 PNG；Web UI 全平台统一显示 favicon 与 PNG 图标，Windows exe 通过 RC 内嵌同一份 ICO。`scripts/generate-icons.py` 保证可复现。 |
 
 | 34 | Hugging Face 数据集下载 | ✅ | `repoType=dataset` 或 `huggingface.co/datasets/...` 链接自动切换 datasets API；文件按 parquet/arrow/csv/jsonl/text/image/audio/video/archive/tensor 分类；落盘到 `datasetsDir` 并登记离线资源库（不导入模型库）。断点续传、并发、暂停/继续/取消/重试与模型下载一致。 |
 | 35 | 多后端并装 | ✅ | 每个官方 release 解压到 `releases/<asset>` 独立目录，登记在 `backends.json`；运行引擎页可启用/删除；启用只改写 `llama-quantize`/`llama-cli` 等工具路径与 `modelforge-runtime.json`，不重新下载。当前后端不可删除，且至少保留一个可用后端。后端识别覆盖 `.dll`/`.so`/`.dylib` 与官方资产名。 |

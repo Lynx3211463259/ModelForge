@@ -27,7 +27,6 @@ DOC_IMAGES = ROOT / "docs" / "images"
 PNG_TARGETS = (
     (16, "favicon-16x16.png"),
     (32, "favicon-32x32.png"),
-    (180, "apple-touch-icon.png"),
     (192, "android-chrome-192x192.png"),
     (512, "android-chrome-512x512.png"),
 )

@@ -52,8 +52,6 @@
 - 发布资产覆盖 Windows x64、Linux x64/arm64、macOS x64/arm64、Android x64/arm64、
   openEuler x64/arm64，共 9 个 ZIP，并附 `SHA256SUMS.txt`。
 - Windows 为本机构建与验证；POSIX 目标为交叉编译/链接与静态检查，未实机运行。
-- macOS 产物未签名，分发前需自行 codesign + notarize；iOS 仍受 SDK/签名限制，
-  仅保持源码层面的同步与语法校验意图。
 - 性能基准：待确认（本版本未运行跨版本性能对比）。
 - 行为细节：预发布标签的数字部分必须高于当前版本（如 `v1.0.1-nightly.1`），
   否则版本比较结果相等，仍显示 `UP_TO_DATE`。
@@ -87,7 +85,6 @@ Choose the archive for your operating system and architecture. All builds are ZI
 - [openEuler x64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-openeuler-x64.zip)
 - [openEuler arm64 (static musl)](https://github.com/Lynx3211463259/ModelForge/releases/download/v1.0.1/ModelForge-1.0.1-openeuler-arm64.zip)
 
-iOS: no distributable build (signing required; no long-lived background HTTP service). Source stays syntax-checked only.
 
 Verify your download with `SHA256SUMS.txt` in the Assets section below.
 <!-- DOWNLOADS:END -->
