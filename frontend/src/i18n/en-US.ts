@@ -1173,6 +1173,21 @@ const messages: Record<string, string> = {
   "启动时自动检查更新已开启": "Startup update checks enabled",
   "启动时自动检查更新已关闭": "Startup update checks disabled",
   "ModelForge 使用上方更新通道；llama.cpp 的通道在“运行引擎”页设置。": "ModelForge follows the channel above; the llama.cpp channel is set on the runtime page.",
+  "8 位量化，质量接近原始": "8-bit quantization, near-original quality",
+  "体积暂无法估算": "size cannot be estimated",
+  "暂无法估算：缺少该量化类型的位宽数据": "Cannot estimate: bit width for this quant type is unknown",
+  "暂无法估算：缺少模型的参数规模与权重体积": "Cannot estimate: model parameter count and weight size are missing",
+  "暂无法估算量化后大小": "Quantized size cannot be estimated",
+  "约 {0}（基准 100%）": "about {0} (baseline 100%)",
+  "{0} — {1} · 约 {2}": "{0} — {1} · approx. {2}",
+  "{0} — {1} · 约 {2}（占不量化 {3} 的 {4}）": "{0} — {1} · approx. {2} ({4} of unquantized {3})",
+  "{0} — {1} · {2}": "{0} — {1} · {2}",
+  "{0}：{1}。{2}": "{0}: {1}. {2}",
+  "{0} 预计输出约 {1}，约占不量化（{2}）的 {3}；实际大小以转换结果为准。": "{0} estimated output ≈ {1}, about {3} of unquantized ({2}); the actual size is what the conversion produces.",
+  "{0} 预计输出约 {1}；实际大小以转换结果为准。": "{0} estimated output ≈ {1}; the actual size is what the conversion produces.",
+  "当前模型缺少参数规模与权重体积，无法估算量化后大小；这里不会显示固定或误导性的数值。": "This model has no parameter count or weight size, so quantized sizes cannot be estimated. No fixed or misleading numbers are shown.",
+  "约占 F16 {0}": "approx. {0} of F16",
+  "{0} bpw": "{0} bpw",
 }
 
 export default messages

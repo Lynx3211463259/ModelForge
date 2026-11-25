@@ -78,6 +78,55 @@ const finalEstimate = computed(() => {
   return estimates.value.find((item) => item.type.toLowerCase() === target.toLowerCase()) || null
 })
 
+// Dynamic size estimation for the quant picker. Every option either gets a real
+// estimate (parameters/bit width from the backend) or an explicit explanation.
+function estimateFor(type: string): EstimateOption | null {
+  const target = String(type).toLowerCase()
+  return estimates.value.find((item) => item.type.toLowerCase() === target) || null
+}
+
+const baselineEstimate = computed(() => estimateFor(form.value.outType))
+const hasModelMetrics = computed(() => Boolean(baselineEstimate.value?.estimated))
+
+function percentOfBaseline(size: number): string {
+  const base = baselineEstimate.value?.estimatedSize || 0
+  if (!base || size <= 0) return ''
+  const ratio = (size / base) * 100
+  return `${ratio < 1 ? ratio.toFixed(2) : ratio.toFixed(1)}%`
+}
+
+function quantOptionText(quant: string): string {
+  const est = estimateFor(quant)
+  const desc = t(est?.description || 'llama.cpp 支持的量化类型')
+  const outLabel = form.value.outType.toUpperCase()
+  if (!est?.estimated) {
+    return t('{0} — {1} · {2}', [quant, desc, t('体积暂无法估算')])
+  }
+  const pct = percentOfBaseline(est.estimatedSize)
+  return pct
+    ? t('{0} — {1} · 约 {2}（占不量化 {3} 的 {4}）', [quant, desc, humanBytes(est.estimatedSize), outLabel, pct])
+    : t('{0} — {1} · 约 {2}', [quant, desc, humanBytes(est.estimatedSize)])
+}
+
+const selectedQuantSummary = computed(() => {
+  const quant = form.value.quantType
+  if (!quant) return ''
+  const est = estimateFor(quant)
+  if (!est?.estimated) {
+    return t('{0}：{1}。{2}', [
+      quant,
+      t(est?.description || 'llama.cpp 支持的量化类型'),
+      est?.reason ? t(est.reason) : t('暂无法估算量化后大小')
+    ])
+  }
+  const pct = percentOfBaseline(est.estimatedSize)
+  return pct
+    ? t('{0} 预计输出约 {1}，约占不量化（{2}）的 {3}；实际大小以转换结果为准。', [
+        quant, humanBytes(est.estimatedSize), form.value.outType.toUpperCase(), pct
+      ])
+    : t('{0} 预计输出约 {1}；实际大小以转换结果为准。', [quant, humanBytes(est.estimatedSize)])
+})
+
 const availableQuants = computed(() => {
   const types = app.capabilities?.quantTypes || []
   const preferred = ['Q8_0', 'Q6_K', 'Q5_K_M', 'Q4_K_M', 'Q4_K', 'Q3_K_M', 'Q2_K', 'IQ4_XS', 'IQ3_M', 'IQ2_M']
@@ -460,22 +509,31 @@ onUnmounted(() => {
               <input v-model="form.outType" type="radio" :value="item.id" style="display: none" />
               <span class="option-radio"></span>
               <div><div class="option-name">{{ item.label }}</div><div class="option-desc">{{ item.desc }}</div></div>
-              <div class="option-size">{{ humanBytes(estimates.find(e => e.type.toLowerCase() === item.id)?.estimatedSize) }}</div>
+              <div class="option-size">{{ t('{0}', [estimateFor(item.id)?.estimated ? humanBytes(estimateFor(item.id)?.estimatedSize) : '—']) }}</div>
             </label>
           </div>
 
           <div class="section-label">{{ t('第二阶段 · 量化方案') }}</div>
           <select v-model="form.quantType" class="select" style="margin-bottom: 8px">
-            <option value="">{{ t('不量化（仅输出 {0}）', [form.outType.toUpperCase()]) }}</option>
-            <option v-for="quant in availableQuants" :key="quant" :value="quant">{{ t('{0} — {1}', [quant, t(estimates.find(e => e.type.toLowerCase() === quant.toLowerCase())?.description || 'llama.cpp 支持的量化类型')]) }}</option>
+            <option value="">
+              {{ t('不量化（仅输出 {0}）', [form.outType.toUpperCase()]) }}<template v-if="baselineEstimate?.estimated"> · {{ t('约 {0}（基准 100%）', [humanBytes(baselineEstimate.estimatedSize)]) }}</template>
+            </option>
+            <option v-for="quant in availableQuants" :key="quant" :value="quant">{{ quantOptionText(quant) }}</option>
           </select>
+          <div v-if="estimates.length && !hasModelMetrics" class="notice warning" style="margin-bottom: 8px">
+            <Icon name="warning" :size="14" class="notice-icon" />
+            <div>{{ t('当前模型缺少参数规模与权重体积，无法估算量化后大小；这里不会显示固定或误导性的数值。') }}</div>
+          </div>
           <div v-if="!availableQuants.length" class="notice warning">
             <Icon name="warning" :size="14" class="notice-icon" />
             <div>{{ t('当前未检测到 llama-quantize 的可用量化类型。仍可执行第一阶段 F16/BF16 转换。') }}</div>
           </div>
           <div v-else-if="form.quantType" class="notice info">
             <Icon name="info" :size="14" class="notice-icon" />
-            <div>{{ t('{0}', [t(estimates.find(e => e.type.toLowerCase() === form.quantType.toLowerCase())?.description || '量化会先完成中间 GGUF，再调用 llama-quantize。')]) }}</div>
+            <div>
+              <div>{{ t('{0}', [t(estimateFor(form.quantType)?.description || '量化会先完成中间 GGUF，再调用 llama-quantize。')]) }}</div>
+              <div v-if="selectedQuantSummary" class="small" style="margin-top: 4px">{{ selectedQuantSummary }}</div>
+            </div>
           </div>
 
           <div class="section-label">{{ t('行为') }}</div>

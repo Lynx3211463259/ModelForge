@@ -28,11 +28,23 @@ const pplBusy = ref(false)
 let pplTimer: number | undefined
 
 const availableOptions = computed(() => estimates.value.filter((item) => item.available && !['F16', 'BF16', 'F32'].includes(item.type.toUpperCase())))
+// Unquantized F16 is the reference for every percentage; without it we show no ratio.
+const baselineSize = computed(() => {
+  const base = estimates.value.find((item) => item.type.toUpperCase() === 'F16' && item.estimated)
+  return base?.estimatedSize || 0
+})
+const estimableOptions = computed(() => availableOptions.value.filter((item) => item.estimated))
+
+function percentOfBaseline(option: EstimateOption): string {
+  if (!option.estimated || !baselineSize.value || !option.estimatedSize) return ''
+  const ratio = (option.estimatedSize / baselineSize.value) * 100
+  return `${ratio < 1 ? ratio.toFixed(2) : ratio.toFixed(1)}%`
+}
 const selectedModel = computed(() => models.value.find((item) => item.id === modelId.value) || null)
 
 const sizeChart = computed(() => {
   const palette = themeMode.value ? chartPalette() : chartPalette()
-  const options = availableOptions.value
+  const options = estimableOptions.value
   return {
     grid: { left: 54, right: 16, top: 26, bottom: 36 },
     tooltip: { trigger: 'axis', backgroundColor: palette.panel, borderColor: palette.lineStrong, textStyle: { color: palette.text, fontSize: 10 }, valueFormatter: (value: number) => humanBytes(value) },
@@ -54,7 +66,7 @@ const sizeChart = computed(() => {
 
 const memoryChart = computed(() => {
   const palette = themeMode.value ? chartPalette() : chartPalette()
-  const options = availableOptions.value
+  const options = estimableOptions.value
   return {
     grid: { left: 54, right: 16, top: 24, bottom: 36 },
     tooltip: { trigger: 'axis', backgroundColor: palette.panel, borderColor: palette.lineStrong, textStyle: { color: palette.text, fontSize: 10 }, valueFormatter: (value: number) => humanBytes(value) },
@@ -302,7 +314,11 @@ onMounted(async () => {
                 <input type="checkbox" :checked="selectedQuants.includes(option.type)" style="display: none" @change="toggleQuant(option.type)" />
                 <span class="option-radio"></span>
                 <div><div class="option-name">{{ option.type }}</div><div class="option-desc">{{ t(option.description) }}</div></div>
-                <div class="option-size">{{ humanBytes(option.estimatedSize) }}<br /><span class="faint">{{ option.bitsPerWeight }} bpw</span></div>
+                <div class="option-size">
+                  {{ t('{0}', [option.estimated ? humanBytes(option.estimatedSize) : '—']) }}<br />
+                  <span v-if="percentOfBaseline(option)" class="faint">{{ t('约占 F16 {0}', [percentOfBaseline(option)]) }}</span>
+                  <span v-else class="faint">{{ t('{0} bpw', [option.bitsPerWeight || '—']) }}</span>
+                </div>
               </label>
             </div>
             <div class="btn-row" style="margin-top: 14px">
@@ -310,6 +326,9 @@ onMounted(async () => {
                 <span v-if="launching" class="spinner"></span>
                 <Icon v-else name="play" :size="13" /> {{ t('{0}', [launching ? t('创建任务…') : t('生成所选量化版本')]) }}</button>
               <span class="faint tiny">{{ t('每个方案会独立完成转换与量化，便于单独追溯。') }}</span>
+            </div>
+            <div v-if="!baselineSize" class="notice warning" style="margin-top: 12px">
+              <Icon name="warning" :size="14" class="notice-icon" />{{ t('当前模型缺少参数规模与权重体积，无法估算量化后大小；这里不会显示固定或误导性的数值。') }}
             </div>
             <div v-if="selectedModel" class="notice info" style="margin-top: 12px">
               <Icon name="info" :size="14" class="notice-icon" />

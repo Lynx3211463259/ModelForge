@@ -320,7 +320,7 @@ double ConverterService::bitsPerWeight(const std::string& type) {
 std::string ConverterService::typeDescription(const std::string& type) {
     if (type == "F32") return "32 位浮点，最高保真，体积最大";
     if (type == "F16" || type == "BF16") return "16 位浮点，适合作为量化中间格式";
-    if (type == "Q8_0") return "8 位量化，质量接近原始，体积约为 F16 的 53%";
+    if (type == "Q8_0") return "8 位量化，质量接近原始";
     if (type == "Q6_K") return "6 位 K 量化，高质量";
     if (type == "Q5_K_M") return "5 位 K 混合量化，质量与体积平衡";
     if (type == "Q4_K_M") return "4 位 K 混合量化，通用推荐";
@@ -344,9 +344,18 @@ json ConverterService::estimateList(const ModelScanResult& scan) {
     const uint64_t sourceWeightBytes = haveParams
         ? static_cast<uint64_t>(static_cast<double>(scan.parameterCount) * inputBytesPerParam)
         : scan.totalSize;
-    const std::vector<std::string> types = {"F16", "BF16", "Q8_0", "Q6_K", "Q5_K_M", "Q4_K_M", "Q3_K_M", "Q2_K"};
+
+    // Every quant type reported by llama-quantize gets an entry, not just a
+    // hardcoded shortlist: the picker must be able to show a size or explain why
+    // it cannot be estimated.
+    std::vector<std::string> types{"F32", "F16", "BF16"};
     std::set<std::string> availableQuant;
     for (const auto& type : caps.quantTypes) availableQuant.insert(toLower(type));
+    for (const auto& type : caps.quantTypes) {
+        const std::string upper = toUpper(type);
+        if (upper == "F32" || upper == "F16" || upper == "BF16" || upper == "COPY") continue;
+        if (std::find(types.begin(), types.end(), upper) == types.end()) types.push_back(upper);
+    }
 
     json list = json::array();
     for (const auto& type : types) {
@@ -355,26 +364,36 @@ json ConverterService::estimateList(const ModelScanResult& scan) {
         if (haveParams && bits > 0) {
             const double rawBytes = static_cast<double>(scan.parameterCount) * bits / 8.0;
             bytes = static_cast<uint64_t>(rawBytes * 1.01 + std::max<uint64_t>(16ull * 1024ull, static_cast<uint64_t>(rawBytes * 0.002)));
-        } else if (sourceWeightBytes > 0) {
+        } else if (sourceWeightBytes > 0 && bits > 0) {
             const double ratio = bits / (inputBytesPerParam * 8.0);
             const double rawBytes = static_cast<double>(sourceWeightBytes) * ratio;
             bytes = static_cast<uint64_t>(rawBytes * 1.01 + std::max<uint64_t>(16ull * 1024ull, static_cast<uint64_t>(rawBytes * 0.002)));
         }
+        // Unknown bit width or missing model metrics must never produce a
+        // fabricated number; estimated=false tells the UI to explain instead.
+        const bool estimated = bits > 0 && (haveParams || sourceWeightBytes > 0);
         bool available = true;
-        std::string unavailableReason;
+        std::string reason;
         if (type == "F16" || type == "BF16" || type == "F32") {
             available = std::find(caps.conversionTypes.begin(), caps.conversionTypes.end(), toLower(type)) != caps.conversionTypes.end() ||
                         caps.conversionTypes.empty();
+            if (!available) reason = "转换工具未提供该输出类型";
         } else {
             available = availableQuant.count(toLower(type)) > 0;
-            if (!available) unavailableReason = "未在当前 llama-quantize 中检测到该类型";
+            if (!available) reason = "未在当前 llama-quantize 中检测到该类型";
         }
-        if (!available && unavailableReason.empty()) unavailableReason = "转换工具未提供该输出类型";
-        list.push_back(json{
-            {"type", type}, {"bitsPerWeight", bits}, {"estimatedSize", bytes}, {"available", available},
-            {"reason", unavailableReason}, {"description", typeDescription(type)},
-            {"estimatedRuntimeMemory", static_cast<uint64_t>(static_cast<double>(bytes) * 1.2 + 128ull * MB)}
-        });
+        if (reason.empty() && !estimated) {
+            reason = bits <= 0 ? "暂无法估算：缺少该量化类型的位宽数据"
+                               : "暂无法估算：缺少模型的参数规模与权重体积";
+        }
+        json item{{"type", type}, {"bitsPerWeight", bits}, {"estimated", estimated},
+                  {"estimatedSize", estimated ? bytes : 0}, {"available", available},
+                  {"reason", reason}, {"description", typeDescription(type)}};
+        if (estimated) {
+            item["estimatedRuntimeMemory"] =
+                static_cast<uint64_t>(static_cast<double>(bytes) * 1.2 + 128ull * MB);
+        }
+        list.push_back(item);
     }
     return list;
 }

@@ -595,6 +595,50 @@ void testAutoUpdateSetting() {
     mf::fs::remove_all(base, ec);
 }
 
+
+void testQuantEstimates() {
+    std::error_code ec;
+    const mf::fs::path base = mf::fs::temp_directory_path() / ("mf-quant-" + mf::newId("t"));
+    mf::fs::create_directories(base / "data", ec);
+
+    expect(mf::ConverterService::bitsPerWeight("Q4_K_M") > 4.0, "known quant type has bit width");
+    expect(mf::ConverterService::bitsPerWeight("NOT_A_QUANT") == 0.0, "unknown quant type has no bit width");
+    expect(mf::ConverterService::typeDescription("Q8_0").find("53%") == std::string::npos,
+           "description carries no hardcoded percentage");
+
+    mf::Database db;
+    std::string error;
+    expect(db.open(mf::pathToUtf8(base / "data" / "test.db"), error), "quant: database opens");
+    mf::SettingsService settings(db, base, base / "data", base);
+    mf::ConverterService converter(settings);
+
+    mf::ModelScanResult scan;
+    scan.parameterCount = 1000000;
+    scan.totalSize = 2000000;
+    scan.dtype = "f16";
+    const mf::json withMetrics = converter.estimates(scan);
+    expect(withMetrics.contains("options") && !withMetrics["options"].empty(), "estimate options returned");
+    bool f16Estimated = false;
+    for (const auto& item : withMetrics["options"]) {
+        if (item.value("type", "") == "F16") {
+            f16Estimated = item.value("estimated", false) && item.value("estimatedSize", 0ull) > 0;
+        }
+    }
+    expect(f16Estimated, "F16 baseline estimated from parameter count");
+
+    mf::ModelScanResult empty;
+    const mf::json withoutMetrics = converter.estimates(empty);
+    bool missingExplained = true;
+    for (const auto& item : withoutMetrics["options"]) {
+        if (item.value("estimated", true)) missingExplained = false;
+        if (item.value("reason", "").empty()) missingExplained = false;
+    }
+    expect(missingExplained, "missing model metrics produce an explicit reason instead of numbers");
+
+    db.close();
+    mf::fs::remove_all(base, ec);
+}
+
 } // namespace
 
 int main() {
@@ -614,6 +658,7 @@ int main() {
     testOfflineLibrary();
     testHealthCheck();
     testAutoUpdateSetting();
+    testQuantEstimates();
     if (failures) {
         std::cerr << failures << " test(s) failed\n";
         return 1;
