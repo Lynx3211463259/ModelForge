@@ -1575,6 +1575,11 @@ button {
   box-shadow: 0 0 0 4px rgba(52, 214, 196, 0.07);
 }
 
+/* The dialog receives focus on open; the container outline adds nothing. */
+.modal:focus {
+  outline: none;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

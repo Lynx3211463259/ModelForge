@@ -4,6 +4,16 @@ All notable changes to ModelForge are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The directory/file picker now opens above the dialog that launched it. Every
+  `AppModal` shares one stack (`components/modalStack.ts`), so the newest dialog
+  gets the highest z-index, Escape closes only the topmost one, body scroll stays
+  locked until the last dialog closes, and focus returns to the previous control.
+
+
 ## [1.1.0-beta.1] - 2026-11-24
 
 ### Added

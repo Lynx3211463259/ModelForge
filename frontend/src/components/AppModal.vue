@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { t } from '../i18n'
-import { onMounted, onUnmounted, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
+import { createModalId, isTopModal, popModal, pushModal } from './modalStack'
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
@@ -12,25 +13,59 @@ const props = withDefaults(defineProps<{
 }>(), { subtitle: '', wide: false, closeable: true })
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
+// Ids must come from the shared module: a per-instance counter would give every
+// dialog the same id and collapse the stack.
+const id = createModalId()
+const zIndex = ref(100)
+const dialog = ref<HTMLElement | null>(null)
+let returnFocus: HTMLElement | null = null
+
+function enterStack() {
+  zIndex.value = pushModal(id)
+  returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  nextTick(() => dialog.value?.focus())
+}
+
+function leaveStack() {
+  popModal(id)
+  if (returnFocus && returnFocus.isConnected) returnFocus.focus()
+  returnFocus = null
+}
+
 function close() {
   if (props.closeable) emit('update:modelValue', false)
 }
 
 function onKey(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.modelValue) close()
+  // Only the topmost dialog reacts. Marking the event prevents the listener of
+  // the dialog underneath from handling the same Escape after the top one pops.
+  if (event.defaultPrevented) return
+  if (event.key === 'Escape' && props.modelValue && isTopModal(id)) {
+    event.preventDefault()
+    close()
+  }
 }
 
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) enterStack()
+    else leaveStack()
+  },
+  { immediate: true }
+)
+
 onMounted(() => window.addEventListener('keydown', onKey))
-onUnmounted(() => window.removeEventListener('keydown', onKey))
-watch(() => props.modelValue, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
+  leaveStack()
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="modal-backdrop" @click.self="close">
-      <section class="modal" :class="{ wide }" role="dialog" aria-modal="true">
+    <div v-if="modelValue" class="modal-backdrop" :style="{ zIndex }" @click.self="close">
+      <section ref="dialog" class="modal" :class="{ wide }" role="dialog" aria-modal="true" tabindex="-1">
         <header class="modal-head">
           <div>
             <div class="modal-title">{{ title }}</div>
