@@ -6,6 +6,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- The quantization picker now estimates the output size of every supported quant
+  type from the selected model and shows its share of the unquantized baseline
+  (`不量化（仅输出 F16/F32） · 约 X（基准 100%）`, `Q4_K_M · 约 X（占不量化 F16 的 Y%）`).
+  Options update on model / intermediate-precision / quant changes; missing
+  parameter counts or unknown bit widths produce an explicit notice instead of a
+  number, and descriptions no longer hardcode percentages. The quantization lab
+  shows the same ratios and excludes non-estimable types from its charts.
+
 ### Fixed
 
 - The directory/file picker now opens above the dialog that launched it. Every
